@@ -1,0 +1,10 @@
+###You can ignore this file###
+- Enable the Clock with RCC_APB2ENR for GPIOx and AFIO
+- Choose a pin
+- Set the pin to input pull up / pull ↓
+- Set the Output register to 1 for pull up
+- Map the pin using the AFIO_EXTICRx registers
+- Set falling edge using the EXTI_FTSR register (bits 0-15 map to Px0- Px15)
+- Enable the EXTI0 interrupt line using the EXTI_IMR register
+- Clear pending interrupts using EXTI_PR
+- Enable the EXTI interrupt in NVIC NVIC_ISERx

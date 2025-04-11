@@ -1,3 +1,6 @@
+//.section vectors, "a"
+//.word 0x20005000 //SRAM TOP
+//.word Reset_Handler 
 .include "hal.s"
 .include "macros.s"
 
@@ -28,7 +31,7 @@ _init:
     add r0, r0 , r1
     ldr r1, [r0]  // Read RCC_CFGR
     and r1, r1, #0xFFFEFFFF  // Select HSI as PLL source (clear PLLSRC bit)
-    orr r1, r1, #0x1C0000  // Set PLLMUL[3:0] to 0x04 (8x)
+    orr r1, r1, #0x380000  // Set PLLMUL[3:0] to 0x0F (16x)
     str r1, [r0]  // Write back to RCC_CFGR
     // Enable PLL
     ldr r0, =RCC_BASE
