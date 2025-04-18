@@ -1,9 +1,14 @@
 	AREA    DATA, DATA, READWRITE
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
+;####################################################INTERRUPT VARAIBLES#######################################################
 btn1_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn2_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn3_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
+;####################################################END INTERRUPT VARAIBLES#######################################################
+;####################################################PONG VARAIBLES#######################################################
+
+;####################################################END PONG VARAIBLES#######################################################
     ALIGN
 	EXPORT __main
 	EXPORT EXTI0_IRQHandler
@@ -168,25 +173,31 @@ NVIC_VTOR_OFFSET EQU 0xC08
 ;Application Interrupt and Reset Control Register (AIRCR)
 NVIC_AIRCR_OFFSET EQU 0xC0C
 		; END HAL LAYER
+; TFT PIN DEFINITIONS
+TFT_RST         EQU     (1 << 8)
+TFT_RS          EQU     (1 << 9)
+TFT_CS          EQU     (1 << 10)
+TFT_WR          EQU     (1 << 11)
+TFT_RD          EQU     (1 << 12)
 	ENTRY
 
 __main FUNCTION
 
 	BL _init
+    LDR R0, =0xF800 ; Load the color value
+    BL TFT_FillScreen ; Call TFT_FillScreen to fill the screen with the color
 MAIN_LOOP
-;	LDR R0, =GPIOA_BASE
-;	LDR R1, =GPIOx_ODR_OFFSET
-;	ADD R0, R0, R1
-;	LDR R1, [R0]
-;	eor R1, #0x01
-;	str R1, [R0]
-;	BL DELAY_HALF_SECOND
+	;LDR R0, =GPIOA_BASE
+	;LDR R1, =GPIOx_ODR_OFFSET
+	;ADD R0, R0, R1
+	;LDR R1, [R0]
+	;eor R1, #0x01
+	;str R1, [R0]
+	;push {R0}
+	;MOV R0, #5000
+	;BL DELAY_MS
+	;pop {R0}
 	B MAIN_LOOP
-	
-	
-	
-	
-	
 _init
     push {r0-r12, lr}  ; Save registers
     ;#################################Select system Clock Source#######################################
@@ -258,7 +269,7 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     str r1, [r0]  ; Write back to RCC_APB2ENR
     ;##################################End Enable GPIOA, GPIOB & AFIO Clocks#######################################
     ;#################################Configure GPIOA and GPIOB#######################################
-    ; Configure GPIOA (PA0 through PA-8) as output, we need 12 bit (LCD_RST, LCD_CS, LCD_RS, LCS_WR, LCDD0-7)
+    ; Configure GPIOA (PA0 through PA-8) as output, we need 12 bit (LCD_RST, LCD_CS, LCD_RS, LCS_WR, LCD_RD, LCDD0-7)
     ; Lower 8 pins are defined here and will be used as Data pins for the LCD
     ldr r0, =GPIOA_BASE
     ldr r1, =GPIOx_CRL_OFFSET
@@ -269,7 +280,7 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     ldr r0, =GPIOA_BASE
     ldr r1, =GPIOx_CRH_OFFSET
     add r0, r0, r1
-    MOV r1, #0x3333 ; Set mode to output 50MHz, push-pull for PA8-PA11
+    LDR r1, =0x33333 ; Set mode to output 50MHz, push-pull for PA8-PA12
     str r1, [r0]  ; Write to GPIOA_CRH
     ; Configure GPIOB (PB0 through PB3) as input with pull-up/pull-down resistors => this is for the arcade buttons
     ldr r0, =GPIOB_BASE
@@ -341,29 +352,206 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     orr r1, r1, r2 ;Set the priority for EXTI3 & EXTI2 (Premrption to 0, sub priority of EXTI3 is 3 and EXTI2 is 2)
     str r1, [r0]  ;Write back to NVIC_IPR3
     ;#################################End Enable Interrupts for Arcade Buttons#######################################
-    ;CPSIE I ; Enable interrupts
+    ;#################################TFT LCD Init#######################################
+    LDR R2, =GPIOA_BASE ; Load GPIOA base address
+    LDR R1, =GPIOx_ODR_OFFSET ; Load GPIOx_ODR offset
+    ADD R2, R2, R1 ; Calculate GPIOA_ODR address
+    LDR R1, [R2] ; Read GPIOA_ODR
+    ; Reset low
+    BIC R1, R1, #TFT_RST
+    STR R1, [R2]
+    MOV R0, #120
+    BL DELAY_MS
+    ; Reset high
+    ORR R1, R1, #TFT_RST
+    STR R1, [R2]
+    BL DELAY_MS
+    MOV R2, #0x3A ; Set R2 to 0x3A (TFT LCD pixel format command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x55 ; Set R2 to 0x55 (16-bit pixel format)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x11 ; Set R2 to 0x11 (TFT LCD sleep out command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R0, #120 ; Set delay to 120 ms
+    BL DELAY_MS ; Call DELAY_MS to wait
+    MOV R2, #0x36 ; Set R2 to 0x36 (TFT LCD memory access control command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x28 ; Set R2 to 0x28 (RGB color order, Landscape display)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x02A ; Set R2 to 0x02A (TFT LCD column address set command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x00 ; Set R2 to 0x00 (start column address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x00 ; Set R2 to 0x00 (start column address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x01 ; Set R2 to 0x01 (end column address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0xDF ; Set R2 to 0x3F (end column address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x02B ; Set R2 to 0x02B (TFT LCD page address set command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x00 ; Set R2 to 0x00 (start page address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x00 ; Set R2 to 0x00 (start page address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x01 ; Set R2 to 0x01 (end page address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x3F ; Set R2 to 0x3F (end page address)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x2C ; Set R2 to 0x2C (TFT LCD memory write command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x29 ; LCD display on command
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    BL DELAY_MS ; Call DELAY_MS to wait
     pop {r0-r12, lr}
     bx lr
 	
-	
-	
-	
-DELAY_FIFTY_MILLI
-	PUSH{R0-R12,LR}
-	
-	LDR R0, =INTERVAL
-DELAY_LOOP_FIFTY
-	SUB R0, R0, #1
-	CMP R0, #0
-	BGE DELAY_LOOP_FIFTY
-	
-	POP{R0-R12, PC}
-	
-	
-	
-	
-	
+;####################################################PONG Start#######################################################
+pong
+    push {r0-r12, lr}
+    
+    pop {r0-r12, lr}
+    bx lr
+;#####################################################PONG End#######################################################
+
 	ENDFUNC
+	
+; Number of delay ms is in R0
+DELAY_MS PROC
+	PUSH {R0-R3, LR}          ; Save registers and link register
+	LDR R1, =sys_time         ; Load address of sys_time
+	LDR R2, [R1]              ; R2 = current sys_time
+	ADD R3, R2, R0            ; R3 = sys_time + delay_ms (target time)
+DELAY_MS_LOOP
+	LDR R2, [R1]              ; R2 = current sys_time
+	CMP R2, R3                ; Compare current sys_time with target time
+	BLT DELAY_MS_LOOP         ; Branch if less than (not enough time has passed)
+	POP {R0-R3, PC}           ; Restore registers and return
+	ENDP
+TFT_COMMAND_WRITE PROC
+	PUSH {R0-R1, lr}          ; Save registers and link register
+	ldr R0, =GPIOA_BASE
+    ldr R1, =GPIOx_ODR_OFFSET
+    add R0, R0, R1
+    ldr R1, [R0]
+    ; CLEAR CS
+    BIC R1, R1, #TFT_CS ; Set CS to 0 for chip select
+    STR R1, [R0]
+    ; CLEAR RS
+    BIC R1, R1, #TFT_RS ; Set RS to 0 for command
+    STR R1, [R0]
+    ; Set RD high
+    ORR R1, R1, #TFT_RD ; Set RD to 1 (not a read operation)
+    STR R1, [R0]
+    ; Send command (R2 contains command)
+    BIC R1, R1, #0xFF   ; Clear data bits PE0-PE7
+    and R2, R2, #0xFF   ; Ensure only 8 bits
+    orr R1, R1, R2      ; Combine with control bits
+	STR R1, [R0]
+    BIC R1, R1, #TFT_WR ; Clear WR bit
+    STR R1, [R0]        ; Write command to data register
+    ; Generate WR pulse (low > high)
+    NOP
+    ORR R1, R1, #TFT_WR ; Set WR to 1
+    STR R1, [R0]        ; Write command to data register
+    ; Set CS high
+    ORR R1, R1, #TFT_CS ; Set CS to 1 (chip deselect)
+    STR R1, [R0]        ; Write command to data register
+
+	POP {R0-R1, LR}           ; Restore registers and return
+    bx lr
+	ENDP
+
+TFT_DATA_WRITE PROC
+	PUSH {R0-R1, lr}          ; Save registers and link register
+	ldr R0, =GPIOA_BASE
+    ldr R1, =GPIOx_ODR_OFFSET
+    add R0, R0, R1
+    ldr R1, [R0]
+    ; CLEAR CS
+    BIC R1, R1, #TFT_CS ; Set CS to 0 for chip select
+    STR R1, [R0]
+    ; CLEAR RS
+    ORR R1, R1, #TFT_RS ; Set RS to 1 for data
+    STR R1, [R0]
+    ; Set RD high
+    ORR R1, R1, #TFT_RD ; Set RD to 1 (not a read operation)
+    STR R1, [R0]
+    ; Send command (R2 contains data)
+    BIC R1, R1, #0xFF   ; Clear data bits PE0-PE7
+    and R2, R2, #0xFF   ; Ensure only 8 bits
+    orr R1, R1, R2
+	STR R1, [R0]
+    BIC R1, R1, #TFT_WR ; Clear WR bit
+    STR R1, [R0]        ; Write command to data register
+    ; Generate WR pulse (low > high)
+    ;STR R1, [R0]        ; Write command to data register
+    NOP
+    ORR R1, R1, #TFT_WR ; Set WR to 1
+    STR R1, [R0]        ; Write command to data register
+    ; Set CS high
+    ORR R1, R1, #TFT_CS ; Set CS to 1 (chip deselect)
+    STR R1, [R0]        ; Write command to data register
+
+	POP {R0-R1, LR}           ; Restore registers and return
+    bx lr
+	ENDP
+
+TFT_FillScreen PROC
+    PUSH {R1-R5, LR}
+
+    ; Save color
+    MOV R5, R0
+
+    ; Set Column Address (0-479)
+    MOV R2, #0x2A
+    BL TFT_COMMAND_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x01
+    BL TFT_DATA_WRITE
+    MOV R2, #0xDF      ; 479
+    BL TFT_DATA_WRITE
+
+    ; Set Page Address (0-319)
+    MOV R2, #0x2B
+    BL TFT_COMMAND_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x01      ; High byte of 0x013F (319)
+    BL TFT_DATA_WRITE
+    MOV R2, #0x3F      ; Low byte of 0x013F (319)
+    BL TFT_DATA_WRITE
+
+    ; Memory Write
+    MOV R2, #0x2C
+    BL TFT_COMMAND_WRITE
+
+    ; Prepare color bytes
+    MOV R0, R5, LSR #8     ; High byte
+    AND R1, R5, #0xFF      ; Low byte
+
+    ; Fill screen with color (320x480)
+    LDR R3, =153600
+FillLoop
+    ; Write high byte
+    MOV R2, R0
+    BL TFT_DATA_WRITE
+    
+    ; Write low byte
+    MOV R2, R1
+    BL TFT_DATA_WRITE
+    
+    SUBS R3, R3, #1
+    BNE FillLoop
+
+    POP {R1-R5, LR}
+    BX LR
+    ENDP
 EXTI0_IRQHandler PROC
 
 	push {r0-r5, lr}         ; Save registers to the stack
