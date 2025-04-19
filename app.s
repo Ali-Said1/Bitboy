@@ -23,8 +23,8 @@ btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 __main FUNCTION
 
 	BL _init
-    ;BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
-    LDR R0, =0x3ADC ; Load the color value
+    BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
+    LDR R0, =0xF800 ; Load the color value
     BL TFT_FillScreen ; Call TFT_FillScreen to fill the screen with the color
 MAIN_LOOP
 
@@ -181,59 +181,6 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     orr r1, r1, r2 ;Set the priority for EXTI3 & EXTI2 (Premrption to 0, sub priority of EXTI3 is 3 and EXTI2 is 2)
     str r1, [r0]  ;Write back to NVIC_IPR3
     ;#################################End Enable Interrupts for Arcade Buttons#######################################
-    ;#################################TFT INIT#######################################
-    LDR R2, =GPIOA_BASE ; Load GPIOA base address
-    LDR R1, =GPIOx_ODR_OFFSET ; Load GPIOx_ODR offset
-    ADD R2, R2, R1 ; Calculate GPIOA_ODR address
-    LDR R1, [R2] ; Read GPIOA_ODR
-    ORR R1, R1, #0x1F00
-    ; Reset low
-    BIC R1, R1, #TFT_RST
-    STR R1, [R2]
-    MOV R5, #120
-    BL DELAY_MS
-    ; Reset high
-    ORR R1, R1, #TFT_RST
-    STR R1, [R2]
-    BL DELAY_MS
-    MOV R2, #0x3A ; Set R2 to 0x3A (TFT LCD pixel format command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R2, #0x55 ; Set R2 to 0x55 (16-bit pixel format)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x11 ; Set R2 to 0x11 (TFT LCD sleep out command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R5, #120 ; Set delay to 120 ms
-    BL DELAY_MS ; Call DELAY_MS to wait
-    MOV R2, #0x36 ; Set R2 to 0x36 (TFT LCD memory access control command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R2, #0x28 ; Set R2 to 0x28 (RGB color order, Landscape display)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x02A ; Set R2 to 0x02A (TFT LCD column address set command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R2, #0x00 ; Set R2 to 0x00 (start column address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x00 ; Set R2 to 0x00 (start column address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x01 ; Set R2 to 0x01 (end column address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0xDF ; Set R2 to 0x3F (end column address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x02B ; Set R2 to 0x02B (TFT LCD page address set command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R2, #0x00 ; Set R2 to 0x00 (start page address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x00 ; Set R2 to 0x00 (start page address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x01 ; Set R2 to 0x01 (end page address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x3F ; Set R2 to 0x3F (end page address)
-    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
-    MOV R2, #0x2C ; Set R2 to 0x2C (TFT LCD memory write command)
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    MOV R2, #0x29 ; LCD display on command
-    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
-    BL DELAY_MS ; Call DELAY_MS to wait
-    ;#################################End TFT INIT#######################################
 	pop {r0-r12, lr}
 	bx lr
 	LTORG
@@ -382,38 +329,30 @@ TFT_INIT FUNCTION
     BIC R1, R1, #TFT_CS
     STR R1, [R0]
     ; ###############################Software INIT commands#######################################
-    MOV R2, #0x3A
-    BL TFT_COMMAND_WRITE
-    MOV R2, #0x55
-    BL TFT_DATA_WRITE
+    MOV R2, #0x3A ; Set R2 to 0x3A (TFT LCD pixel format command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x55 ; Set R2 to 0x55 (16-bit pixel format)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
+    MOV R2, #0x11 ; Set R2 to 0x11 (TFT LCD sleep out command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R0, #120 ; Set delay to 120 ms
+    BL DELAY_MS ; Call DELAY_MS to wait
+    MOV R2, #0x36 ; Set R2 to 0x36 (TFT LCD memory access control command)
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    MOV R2, #0x28 ; Set R2 to 0x28 (RGB color order, Landscape display)
+    BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
 
-    ; Sleep Out
-    MOV R2, #0x11
-    BL TFT_COMMAND_WRITE
-    MOV R5, #120
-    BL DELAY_MS
+
+	MOV R2, #0xB1 ;FPS Control
+	BL TFT_COMMAND_WRITE
+	MOV R2, #0xA0
+	BL TFT_DATA_WRITE
+	MOV R2, #0x11
+	BL TFT_DATA_WRITE
 	
-    ; Enable Color Inversion
-    MOV R2, #0x21      ; Command for Color Inversion ON
-    BL TFT_COMMAND_WRITE
-
-    
-    ; Display ON
-    MOV R2, #0x29
-    BL TFT_COMMAND_WRITE
-
-    ; MOV R2, 0x11
-    ; BL TFT_COMMAND_WRITE ; Sleep Out
-    ; MOV R2, 0x36
-    ; BL TFT_COMMAND_WRITE ; Memory Access Control
-    ; MOV R2, 0x48
-    ; BL TFT_DATA_WRITE
-    ; MOV R2, 0x3A
-    ; BL TFT_COMMAND_WRITE ; Set pixel format
-    ; MOV R2, 0x55
-    ; BL TFT_DATA_WRITE
-    ; MOV R2, 0x29
-    ; BL TFT_COMMAND_WRITE ; Display on
+    MOV R2, #0x29 ; LCD display on command
+    BL TFT_COMMAND_WRITE ; Call TFT_COMMAND_WRITE to send the command
+    BL DELAY_MS ; Call DELAY_MS to wait
 
     POP {R0-R1, R5, lr}
     bx lr
