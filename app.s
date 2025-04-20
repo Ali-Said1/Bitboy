@@ -10,10 +10,60 @@ btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 
 ;####################################################END PONG VARAIBLES#######################################################
     ALIGN
-    ; R5 is used as delay counter in ms
+	;--===============================================================--
+	;|--|  STM32F103C8T6  |--|  ARM Cortex-M3  |--|  ARM Assembly   |--|
+    ;|--| =================Important Definitions:================== |--|
+    ;|--| ============ Delay in ms, use R5 as counter ============= |--|
+    ;|--| ================== Active Game => R12 =================== |--|
+    ;|--| =============== R12 <== 0 == Main Menu ================== |--|
+    ;|--| =============== R12 <== 1 == Game 1... ================== |--|
+    ;|--| ================== Game Over => R11 ===================== |--|
+    ;--===============================================================--
     INCLUDE hal.s
+    IMPORT gamelogo
+	; Characters import
+    IMPORT char_48  ; 0
+    IMPORT char_49  ; 1
+    IMPORT char_50  ; 2
+    IMPORT char_51  ; 3
+    IMPORT char_52  ; 4
+    IMPORT char_53  ; 5
+    IMPORT char_54  ; 6
+    IMPORT char_55  ; 7
+    IMPORT char_56  ; 8
+    IMPORT char_57  ; 9
+    ; Alphabet (A-Z)
+    IMPORT char_65  ; A
+    IMPORT char_66  ; B
+    IMPORT char_67  ; C
+    IMPORT char_68  ; D
+    IMPORT char_69  ; E
+    IMPORT char_70  ; F
+    IMPORT char_71  ; G
+    IMPORT char_72  ; H
+    IMPORT char_73  ; I
+    IMPORT char_74  ; J
+    IMPORT char_75  ; K
+    IMPORT char_76  ; L
+    IMPORT char_77  ; M
+    IMPORT char_78  ; N
+    IMPORT char_79  ; O
+    IMPORT char_80  ; P
+    IMPORT char_81  ; Q
+    IMPORT char_82  ; R
+    IMPORT char_83  ; S
+    IMPORT char_84  ; T
+    IMPORT char_85  ; U
+    IMPORT char_86  ; V
+    IMPORT char_87  ; W
+    IMPORT char_88  ; X
+    IMPORT char_89  ; Y
+    IMPORT char_90  ; Z
 	EXPORT __main
 	EXPORT EXTI0_IRQHandler
+	EXPORT EXTI1_IRQHandler
+	EXPORT EXTI2_IRQHandler
+	EXPORT EXTI3_IRQHandler
 	EXPORT SysTick_Handler
 	AREA MYCODE, CODE, READONLY
 		; HAL LAYER
@@ -24,11 +74,41 @@ __main FUNCTION
 
 	BL _init
     BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
-    LDR R0, =0xF800 ; Load the color value
-    BL TFT_FillScreen ; Call TFT_FillScreen to fill the screen with the color
+    LDR R0, =0x0000 ; Load the color value
+    BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
+    MOV R12, #0x0
 MAIN_LOOP
-
+    ;CMP R12, #0x0 ; Check if R2 is 0
+    ;BEQ DRAW_MENU ; If R2 is 0, call DRAW_MENU
+    ;CMP R2, #0x1 ; Check if R2 is 1
+    ;BEQ DRAW_GAME1
+DRAW_MENU
+    LDR R3, =gamelogo
+    MOV R0, #45
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #190
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #335
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #45
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #190
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #335
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
 	B MAIN_LOOP
+
 _init
     push {r0-r12, lr}  ; Save registers
     ;#################################Select system Clock Source#######################################
@@ -194,7 +274,7 @@ pong
 
 	ENDFUNC
 	
-; Number of delay ms is in R0
+; #######################################################START MISC FUNCTIONS#######################################################
 DELAY_MS PROC
 	PUSH {R0-R3, LR}          ; Save registers and link register
 	LDR R1, =sys_time         ; Load address of sys_time
@@ -207,8 +287,118 @@ DELAY_MS_LOOP
 	POP {R0-R3, LR}           ; Restore registers and return
 	BX LR
 	ENDP
+;#######################################################END MISC FUNCTIONS#######################################################
+;#######################################################START Drawing Functions#####################################################
+; DRAW_PIXEL FUNCTION
+;     PUSH {R0-R4, LR}
 
+;     POP {R0-R4, LR}
+    ; BX LR
+;     ENDFUNC
+; All landscape
+; R0 Has Start X
+; R1 Has Start Y
+; R3 Has image address, first 8 bytes of an image contain width and height
+DRAW_IMAGE FUNCTION
+    PUSH {R0-R7, LR}
+    LDR R4, [R3], #4 ; Load width from image address
+    LDR R5, [R3], #4 ; Load height from image address
 
+    MOV R2, #0x2A ; Set Column Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R0, #8 ; Get high byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start X coordinate
+    AND R2, R0, #0xFF ; Get low byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start X coordinate
+    ADD R6, R4, R0
+    SUB R6, R6, #1 ; Calculate End X coordinate (Start X + Width - 1)
+    LSR R2, R6, #8 ; Get high byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End X coordinate
+    AND R2, R6, #0xFF ; Get low byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End X coordinate
+
+    MOV R2, #0x2B ; Set Page Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R1, #8 ; Get high byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start Y coordinate
+    ADD R6, R5, R1
+    SUB R6, R6, #1 ; Calculate End Y coordinate (Start Y + Height - 1)
+    LSR R2, R6, #8 ; Get high byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End Y coordinate
+    AND R2, R6, #0xFF ; Get low byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End Y coordinate
+
+    MOV R2, #0x2C ; Memory Write command
+    BL TFT_COMMAND_WRITE
+
+    MUL R6, R4, R5 ; Calculate total pixels (Width * Height)
+
+IMAGE_DRAW_LOOP
+    LDRH R0, [R3], #2 ; Load pixel color from image address
+    MOV R2, R0, LSR #8 ; Extract high byte
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R0, #0xFF ; Extract low byte
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+    SUBS R6, R6, #1 ; Decrement pixel count
+    BNE IMAGE_DRAW_LOOP ; Loop until all pixels are drawn
+
+    POP {R0-R7, LR}
+    BX LR
+    ENDFUNC
+FILL_SCREEN FUNCTION
+    PUSH {R1-R12, LR}
+    ; Extract high and low bytes from R0 (COLOR)
+    MOV R1, R0
+    AND R1, R0, #0xFF ; Get the low byte (lower 8 bits)
+    LSR R0, R0, #8   ; Get the high byte (upper 8 bits)
+
+    ; Set Column Address
+    MOV R2, #0x2A
+    BL TFT_COMMAND_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x01
+    BL TFT_DATA_WRITE
+    MOV R2, #0xDF  ; Max column (319)
+    BL TFT_DATA_WRITE
+
+    ; Set Page Address
+    MOV R2, #0x2B
+    BL TFT_COMMAND_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x00
+    BL TFT_DATA_WRITE
+    MOV R2, #0x01
+    BL TFT_DATA_WRITE
+    MOV R2, #0x3F  ; Max row (479)
+    BL TFT_DATA_WRITE
+
+    ; Memory Write
+    MOV R2, #0x2C
+    BL TFT_COMMAND_WRITE
+
+    ; Fill screen with color
+    MOV R3, #153600  ; Total pixels (320x240 since 16-bit per pixel)
+TFT_Loop
+    MOV R2, R0      ; Send high byte
+    BL TFT_DATA_WRITE
+    MOV R2, R1      ; Send low byte
+    BL TFT_DATA_WRITE
+
+    SUBS R3, R3, #1
+    BNE TFT_Loop
+
+    POP {R1-R12, LR}
+    BX LR
+    ENDFUNC
+;#######################################################END Drawing Functions#######################################################
+
+;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
     PUSH {R0-R4, LR}
 
@@ -250,9 +440,7 @@ TFT_COMMAND_WRITE PROC
     POP {R0-R4, LR}
     BX LR
     ENDP
-; *************************************************************
-; TFT Write Data (R0 = data)
-; *************************************************************
+
 TFT_DATA_WRITE PROC
     PUSH {R0-R4, LR}
 
@@ -342,7 +530,6 @@ TFT_INIT FUNCTION
     MOV R2, #0x28 ; Set R2 to 0x28 (RGB color order, Landscape display)
     BL TFT_DATA_WRITE ; Call TFT_DATA_WRITE to send the data
 
-
 	MOV R2, #0xB1 ;FPS Control
 	BL TFT_COMMAND_WRITE
 	MOV R2, #0xA0
@@ -357,56 +544,8 @@ TFT_INIT FUNCTION
     POP {R0-R1, R5, lr}
     bx lr
     ENDFUNC
-
-TFT_FillScreen FUNCTION
-    PUSH {R1-R12, LR}
-    ; Extract high and low bytes from R0 (COLOR)
-    MOV R1, R0
-    AND R1, R0, #0xFF ; Get the low byte (lower 8 bits)
-    LSR R0, R0, #8   ; Get the high byte (upper 8 bits)
-
-    ; Set Column Address
-    MOV R2, #0x2A
-    BL TFT_COMMAND_WRITE
-    MOV R2, #0x00
-    BL TFT_DATA_WRITE
-    MOV R2, #0x00
-    BL TFT_DATA_WRITE
-    MOV R2, #0x01
-    BL TFT_DATA_WRITE
-    MOV R2, #0xDF  ; Max column (319)
-    BL TFT_DATA_WRITE
-
-    ; Set Page Address
-    MOV R2, #0x2B
-    BL TFT_COMMAND_WRITE
-    MOV R2, #0x00
-    BL TFT_DATA_WRITE
-    MOV R2, #0x00
-    BL TFT_DATA_WRITE
-    MOV R2, #0x01
-    BL TFT_DATA_WRITE
-    MOV R2, #0x3F  ; Max row (479)
-    BL TFT_DATA_WRITE
-
-    ; Memory Write
-    MOV R2, #0x2C
-    BL TFT_COMMAND_WRITE
-
-    ; Fill screen with color
-    MOV R3, #153600  ; Total pixels (320x240 since 16-bit per pixel)
-TFT_Loop
-    MOV R2, R0      ; Send high byte
-    BL TFT_DATA_WRITE
-    MOV R2, R1      ; Send low byte
-    BL TFT_DATA_WRITE
-
-    SUBS R3, R3, #1
-    BNE TFT_Loop
-
-    POP {R1-R12, LR}
-    BX LR
-    ENDFUNC
+;#######################################################END TFT FUNCTIONS#######################################################
+;#######################################################START INTERRUPT HANDLER#######################################################
 EXTI0_IRQHandler PROC
 
 	push {r0-r5, lr}         ; Save registers to the stack
@@ -425,17 +564,83 @@ EXTI0_IRQHandler PROC
     bls skip_toggle              ; If <= 50 ms, skip the toggle
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
-    LDR R0, =GPIOA_BASE
-	LDR R1, =GPIOx_ODR_OFFSET
-	ADD R0, R0, R1
-	LDR R1, [R0]
-	eor R1, #0x01
-	str R1, [R0]
+	; ISR logic starts here:
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
 
+EXTI1_IRQHandler PROC
+
+	push {r0-r5, lr}         ; Save registers to the stack
+    ldr r0, =EXTI_BASE      ; EXTI base address
+    ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
+    add r0, r0, r1            ; Calculate EXTI_PR address
+    mov r1, #0x01             ; Bit mask for EXTI0
+    str r1, [r0]              ; Clear the pending bit for EXTI0
+	; Debouncing logic
+    ldr r2, =sys_time            ; Address of sys_time
+    ldr r2, [r2]                 ; r2 = current sys_time
+    ldr r3, =btn2_last_handled_time   ; Address of last_handled_time
+    ldr r3, [r3]                 ; r3 = last_handled_time
+    subs r0, r2, r3              ; r0 = sys_time - last_handled_time
+    cmp r0, #250                  ; Compare difference with 50 ms
+    bls skip_toggle1              ; If <= 50 ms, skip the toggle
+	ldr r4, =btn2_last_handled_time
+	str r2, [r4]
+	; ISR logic starts here:
+skip_toggle1
+    pop {r0-r5, lr}          ; Restore registers
+    bx lr                     ; Return from interrupt
+	ENDP
+		
+EXTI2_IRQHandler PROC
+
+	push {r0-r5, lr}         ; Save registers to the stack
+    ldr r0, =EXTI_BASE      ; EXTI base address
+    ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
+    add r0, r0, r1            ; Calculate EXTI_PR address
+    mov r1, #0x01             ; Bit mask for EXTI0
+    str r1, [r0]              ; Clear the pending bit for EXTI0
+	; Debouncing logic
+    ldr r2, =sys_time            ; Address of sys_time
+    ldr r2, [r2]                 ; r2 = current sys_time
+    ldr r3, =btn3_last_handled_time   ; Address of last_handled_time
+    ldr r3, [r3]                 ; r3 = last_handled_time
+    subs r0, r2, r3              ; r0 = sys_time - last_handled_time
+    cmp r0, #250                  ; Compare difference with 50 ms
+    bls skip_toggle2             ; If <= 50 ms, skip the toggle
+	ldr r4, =btn3_last_handled_time
+	str r2, [r4]
+	; ISR logic starts here:
+skip_toggle2
+    pop {r0-r5, lr}          ; Restore registers
+    bx lr                     ; Return from interrupt
+	ENDP
+
+EXTI3_IRQHandler PROC
+
+	push {r0-r5, lr}         ; Save registers to the stack
+    ldr r0, =EXTI_BASE      ; EXTI base address
+    ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
+    add r0, r0, r1            ; Calculate EXTI_PR address
+    mov r1, #0x01             ; Bit mask for EXTI0
+    str r1, [r0]              ; Clear the pending bit for EXTI0
+	; Debouncing logic
+    ldr r2, =sys_time            ; Address of sys_time
+    ldr r2, [r2]                 ; r2 = current sys_time
+    ldr r3, =btn4_last_handled_time   ; Address of last_handled_time
+    ldr r3, [r3]                 ; r3 = last_handled_time
+    subs r0, r2, r3              ; r0 = sys_time - last_handled_time
+    cmp r0, #250                  ; Compare difference with 50 ms
+    bls skip_toggle3              ; If <= 50 ms, skip the toggle
+	ldr r4, =btn4_last_handled_time
+	str r2, [r4]
+	; ISR logic starts here:
+skip_toggle3
+    pop {r0-r5, lr}          ; Restore registers
+    bx lr                     ; Return from interrupt
+	ENDP
 SysTick_Handler PROC
     PUSH    {R0, R1, LR}            ; Save registers
 	LDR     R0, =sys_time    ; Load address of my_variable
@@ -447,4 +652,5 @@ SysTick_Handler PROC
 	ENDP
 
 	END
-		
+;================================================END INTERRUPT HANDLER=================================================
+;========================================================END========================================================
