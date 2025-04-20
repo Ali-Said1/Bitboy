@@ -395,24 +395,14 @@
               <FilePath>.\hal.s</FilePath>
             </File>
             <File>
-              <FileName>images.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>.\images.s</FilePath>
-            </File>
-            <File>
-              <FileName>data.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>.\data.s</FilePath>
-            </File>
-            <File>
               <FileName>fonts1.s</FileName>
               <FileType>2</FileType>
               <FilePath>.\fonts1.s</FilePath>
             </File>
             <File>
-              <FileName>fonts2.s</FileName>
+              <FileName>gamelogo.s</FileName>
               <FileType>2</FileType>
-              <FilePath>.\fonts2.s</FilePath>
+              <FilePath>.\gamelogo.s</FilePath>
             </File>
           </Files>
         </Group>

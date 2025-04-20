@@ -152,9 +152,9 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>40</LineNumber>
+          <LineNumber>869</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134218444</Address>
+          <Address>134220330</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -163,7 +163,7 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>.\app.s</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\bit8oy\app.s\40</Expression>
+          <Expression>\\bit8oy\app.s\869</Expression>
         </Bp>
       </Breakpoint>
       <Tracepoint>
@@ -255,8 +255,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>.\images.s</PathWithFileName>
-      <FilenameWithoutPath>images.s</FilenameWithoutPath>
+      <PathWithFileName>.\fonts1.s</PathWithFileName>
+      <FilenameWithoutPath>fonts1.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -267,32 +267,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>.\data.s</PathWithFileName>
-      <FilenameWithoutPath>data.s</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>1</GroupNumber>
-      <FileNumber>5</FileNumber>
-      <FileType>2</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>.\fonts1.s</PathWithFileName>
-      <FilenameWithoutPath>fonts1.s</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>1</GroupNumber>
-      <FileNumber>6</FileNumber>
-      <FileType>2</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>.\fonts2.s</PathWithFileName>
-      <FilenameWithoutPath>fonts2.s</FilenameWithoutPath>
+      <PathWithFileName>.\gamelogo.s</PathWithFileName>
+      <FilenameWithoutPath>gamelogo.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

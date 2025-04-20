@@ -6,6 +6,11 @@ btn2_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 btn3_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 ;####################################################END INTERRUPT VARAIBLES#######################################################
+;####################################################Menu VARAIBLES#######################################################
+HOVERED_GAME DCD 0 ; Variable to store the currently hovered game
+HOVERED_GAME_X DCD 0 ; X coordinate of the hovered game border
+HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
+;###################################################END Menu VARAIBLES#######################################################
 ;####################################################PONG VARAIBLES#######################################################
 
 ;####################################################END PONG VARAIBLES#######################################################
@@ -14,9 +19,9 @@ btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 	;|--|  STM32F103C8T6  |--|  ARM Cortex-M3  |--|  ARM Assembly   |--|
     ;|--| =================Important Definitions:================== |--|
     ;|--| ============ Delay in ms, use R5 as counter ============= |--|
-    ;|--| ================== Active Game => R12 =================== |--|
-    ;|--| =============== R12 <== 0 == Main Menu ================== |--|
-    ;|--| =============== R12 <== 1 == Game 1... ================== |--|
+    ;|--| ================== Active Game => R11 =================== |--|
+    ;|--| =============== R11 <== 0 == Main Menu ================== |--|
+    ;|--| =============== R11 <== 1 == Game 1... ================== |--|
     ;|--| ================== Game Over => R11 ===================== |--|
     ;--===============================================================--
     INCLUDE hal.s
@@ -66,7 +71,6 @@ btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 	EXPORT EXTI3_IRQHandler
 	EXPORT SysTick_Handler
 	AREA MYCODE, CODE, READONLY
-		; HAL LAYER
 
 	ENTRY
 
@@ -76,37 +80,20 @@ __main FUNCTION
     BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
     LDR R0, =0x0000 ; Load the color value
     BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
-    MOV R12, #0x0
+	BL RESET_MENU
+	BL DRAW_MENU
+	MOV R11, #0
 MAIN_LOOP
-    ;CMP R12, #0x0 ; Check if R2 is 0
-    ;BEQ DRAW_MENU ; If R2 is 0, call DRAW_MENU
-    ;CMP R2, #0x1 ; Check if R2 is 1
-    ;BEQ DRAW_GAME1
-DRAW_MENU
-    LDR R3, =gamelogo
-    MOV R0, #45
-    MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
-    MOV R0, #190
-    MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
-    MOV R0, #335
-    MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
-    MOV R0, #45
-    MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
-    MOV R0, #190
-    MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
-    MOV R0, #335
-    MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    CMP R11, #0 ; Check if R11 is 0 (Main Menu)
+    BEQ END_MAINLOOP
+
+    CMP R11, #1 ; Check if R11 is 1
+    BEQ DRAW_GAME1_LBL ; If R11 is 1, branch to DRAW_GAME1
+	B END_MAINLOOP
+DRAW_GAME1_LBL
+    BL DRAW_GAME1
+    B END_MAINLOOP
+END_MAINLOOP
 	B MAIN_LOOP
 
 _init
@@ -270,6 +257,7 @@ pong
     
     pop {r0-r12, lr}
     bx lr
+
 ;#####################################################PONG End#######################################################
 
 	ENDFUNC
@@ -287,6 +275,7 @@ DELAY_MS_LOOP
 	POP {R0-R3, LR}           ; Restore registers and return
 	BX LR
 	ENDP
+    LTORG
 ;#######################################################END MISC FUNCTIONS#######################################################
 ;#######################################################START Drawing Functions#####################################################
 ; DRAW_PIXEL FUNCTION
@@ -295,6 +284,54 @@ DELAY_MS_LOOP
 ;     POP {R0-R4, LR}
     ; BX LR
 ;     ENDFUNC
+;@@@@@@@@@@@@@@@DRAW RECT
+; All landscape
+; R0 Has Start X
+; R1 Has Start Y
+; R3 Has Width
+; R4 Has Height
+; R5 Has Color
+DRAW_RECT FUNCTION
+    PUSH {LR}
+    MOV R2, #0x2A ; Set Column Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R0, #8 ; Get high byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start X coordinate
+    AND R2, R0, #0xFF ; Get low byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start X coordinate
+    ADD R0, R0, R3 ; Add Width to X coordinate for end X
+    SUBS R0, R0, #1 ; Subtract 1 to get the correct end X coordinate
+    LSR R2, R0, #8 ; Get high byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End X coordinate
+    AND R2, R0, #0xFF ; Get low byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End X coordinate
+
+    MOV R2, #0x2B ; Set Page Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R1, #8 ; Get high byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start Y coordinate
+    ADD R1, R1, R4 ; Add Height to Y coordinate for end Y
+    SUBS R0, R0, #1 ; Subtract 1 to get the correct end X coordinate
+    LSR R2, R1, #8 ; Get high byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End Y coordinate
+    MOV R2, #0x2C ; Memory Write command
+    BL TFT_COMMAND_WRITE
+    MUL R3, R3, R4 ; Calculate total pixels (Width * Height)
+RECT_DRAW_LOOP
+    LSR R2, R5, #8 ; Extract high byte of pixel color
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R5, #0xFF ; Extract low byte of pixel color
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+    SUBS R3, R3, #1 ; Decrement pixel count
+    BNE RECT_DRAW_LOOP ; Loop until all pixels are drawn
+	POP {LR}
+	BX LR
+    ENDFUNC
+;@@@@@@@@@@@@@@@DRAW IMAGE
 ; All landscape
 ; R0 Has Start X
 ; R1 Has Start Y
@@ -397,7 +434,87 @@ TFT_Loop
     BX LR
     ENDFUNC
 ;#######################################################END Drawing Functions#######################################################
+;#######################################################START Menu Functions#######################################################
+;#### Function to reset the menu =>> to be called before switching the current game variable
+RESET_MENU FUNCTION
+    PUSH {R0-R1, LR}
+    LDR R0, =HOVERED_GAME
+    MOV R1, #1
+    STR R1, [R0] ; Reset hovered game to 0
+    LDR R0, =HOVERED_GAME_X
+    MOV R1, #37
+    STR R1, [R0] ; Reset X coordinate of hovered game
+    LDR R0, =HOVERED_GAME_Y
+    MOV R1, #52
+    STR R1, [R0] ; Reset Y coordinate of hovered game
 
+    POP {R0-R1, LR}
+    BX LR
+    ENDFUNC
+DRAW_MENU FUNCTION
+    PUSH {R0-R4, LR}
+    ; Draw the hover rectangle around the hovered game
+    LDR R0, =HOVERED_GAME_X ; Load X coordinate of hovered game
+    LDR R0, [R0]
+    LDR R1, =HOVERED_GAME_Y
+    LDR R1, [R1]
+    MOV R3, #116
+    MOV R4, #116
+    MOV R5, #0x265B
+    BL DRAW_RECT
+    ;Draw the game logo
+    LDR R3, =gamelogo
+    MOV R0, #45
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #190
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #335
+    MOV R1, #60
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #45
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #190
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =gamelogo
+    MOV R0, #335
+    MOV R1, #200
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    POP {R0-R4, LR}
+    BX LR
+    ENDFUNC
+;#######################################################END Menu Functions#######################################################
+;#######################################################Start Game Functions#######################################################
+DRAW_GAME1 FUNCTION
+	PUSH {R0-R3, LR}
+    LDR R3, =char_80
+    MOV R0, #200
+    MOV R1, #152
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    ADD R0, R0, #20
+    MOV R1, #152
+	LDR R3, =char_79
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    ADD R0, R0, #21
+	MOV R1, #152
+    LDR R3, =char_78
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    ADD R0, R0, #20
+	MOV R1, #152
+    LDR R3, =char_71
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    POP {R0-R3, LR}
+	BX LR
+	ENDFUNC
+	LTORG
+;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
     PUSH {R0-R4, LR}
@@ -546,7 +663,7 @@ TFT_INIT FUNCTION
     ENDFUNC
 ;#######################################################END TFT FUNCTIONS#######################################################
 ;#######################################################START INTERRUPT HANDLER#######################################################
-EXTI0_IRQHandler PROC
+EXTI0_IRQHandler PROC ; Right Button Handler
 
 	push {r0-r5, lr}         ; Save registers to the stack
     ldr r0, =EXTI_BASE      ; EXTI base address
@@ -565,18 +682,65 @@ EXTI0_IRQHandler PROC
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    CMP R11, #0
+    BEQ MENU_INT0_HANDLER
+	B skip_toggle
+
+; ##########Start Main Menu Handler##########
+MENU_INT0_HANDLER
+    ; Clear old hover
+    PUSH {R0-R5}
+    LDR R0, =HOVERED_GAME_X ; Load X coordinate of hovered game
+    LDR R0, [R0]
+    LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
+    LDR R1, [R1]
+    MOV R3, #116 ; Width of the hover rectangle
+    MOV R4, #116 ; Height of the hover rectangle
+    MOV R5, #0x0000 ; Color to clear (black)
+    BL DRAW_RECT ; Call DRAW_RECT to clear the old hover
+    POP {R0-R5}
+    LDR R1, =HOVERED_GAME
+    LDR R2, [R1] ; Get hovered game index
+    ADD R2, R2, #1 ; Move to the next game
+    STR R2, [R1] ; Update hovered game index
+    CMP R2, #4 ; Check if it was the last game in the first row (3)
+    BEQ GO_SECOND_ROW
+    CMP R2, #7 ; Check if it was the last game in the second row (6)
+    BEQ GO_FIRST_ROW
+    ; If both weren't the case stay in the same row
+    LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
+    LDR R2, [R1] ; Get X coordinate
+    ADD R2, R2, #145 ; Add 145 to X coordinate for next game
+    STR R2, [R1]
+    BL DRAW_MENU ; Call DRAW_MENU to update the screen
+    B skip_toggle
+
+GO_SECOND_ROW
+    LDR R1, =HOVERED_GAME_X
+    MOV R2, #37 ; Reset X coordinate to first game
+    STR R2, [R1]
+    LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
+    MOV R2, #192 ; Go to the second row
+    STR R2, [R1]
+    BL DRAW_MENU
+    B skip_toggle
+GO_FIRST_ROW
+    BL RESET_MENU
+    BL DRAW_MENU ; Call DRAW_MENU to update the screen
+    B skip_toggle
+; ##########END Main Menu Handler##########
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
 
-EXTI1_IRQHandler PROC
+EXTI1_IRQHandler PROC ; Left Button Handler
 
 	push {r0-r5, lr}         ; Save registers to the stack
     ldr r0, =EXTI_BASE      ; EXTI base address
     ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
     add r0, r0, r1            ; Calculate EXTI_PR address
-    mov r1, #0x01             ; Bit mask for EXTI0
+    mov r1, #0x02             ; Bit mask for EXTI1
     str r1, [r0]              ; Clear the pending bit for EXTI0
 	; Debouncing logic
     ldr r2, =sys_time            ; Address of sys_time
@@ -589,18 +753,72 @@ EXTI1_IRQHandler PROC
 	ldr r4, =btn2_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    CMP R11, #0x0
+    BEQ MENU_INT1_HANDLER
+	B skip_toggle1
+    ; ##########Start Main Menu Handler##########
+MENU_INT1_HANDLER
+    ; Clear old hover
+    PUSH {R0-R5}
+    LDR R0, =HOVERED_GAME_X ; Load X coordinate of hovered game
+    LDR R0, [R0]
+    LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
+    LDR R1, [R1]
+    MOV R3, #116 ; Width of the hover rectangle
+    MOV R4, #116 ; Height of the hover rectangle
+    MOV R5, #0x0000 ; Color to clear (black)
+    BL DRAW_RECT ; Call DRAW_RECT to clear the old hover
+    POP {R0-R5}
+    LDR R1, =HOVERED_GAME
+    LDR R2, [R1] ; Get hovered game index
+    SUBS R2, R2, #1 ; Move to the previous game
+    STR R2, [R1] ; Update hovered game index
+    CMP R2, #0 ; Check if it was the first game in the first row (1)
+    BEQ GO_END_SECOND_ROW
+    CMP R2, #3 ; Check if it was the first game in the second row (index 4)
+    BEQ GO_END_FIRST_ROW
+    ; If both weren't the case stay in the same row
+    LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
+    LDR R2, [R1] ; Get X coordinate
+    SUBS R2, R2, #145 ; Subtract 145 to X coordinate for next game
+    STR R2, [R1]
+    BL DRAW_MENU ; Call DRAW_MENU to update the screen
+    B skip_toggle1
+
+GO_END_SECOND_ROW
+    LDR R1, =HOVERED_GAME
+    MOV R0, #6
+    STR R0, [R1] ; Set hovered game to the last game in the second row
+    LDR R1, =HOVERED_GAME_X
+    MOV R2, #327 ; X Coordinate to last game
+    STR R2, [R1]
+    LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
+    MOV R2, #192 ; Go to the second row
+    STR R2, [R1]
+    BL DRAW_MENU
+    B skip_toggle1
+GO_END_FIRST_ROW
+    LDR R1, = HOVERED_GAME_X
+    MOV R2, #327 ; X Coordinate to last game
+    STR R2, [R1]
+    LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
+    MOV R2, #52 ; Go to the second row
+    STR R2, [R1]
+    BL DRAW_MENU
+    B skip_toggle1
+; ##########END Main Menu Handler##########
 skip_toggle1
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
 		
-EXTI2_IRQHandler PROC
+EXTI2_IRQHandler PROC ; Up Button Handler
 
 	push {r0-r5, lr}         ; Save registers to the stack
     ldr r0, =EXTI_BASE      ; EXTI base address
     ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
     add r0, r0, r1            ; Calculate EXTI_PR address
-    mov r1, #0x01             ; Bit mask for EXTI0
+    mov r1, #0x04             ; Bit mask for EXTI2
     str r1, [r0]              ; Clear the pending bit for EXTI0
 	; Debouncing logic
     ldr r2, =sys_time            ; Address of sys_time
@@ -613,6 +831,19 @@ EXTI2_IRQHandler PROC
 	ldr r4, =btn3_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    CMP R11, #0
+    BEQ MENU_INT2_HANDLER
+	B skip_toggle2
+    ; ##########Start Main Menu Handler##########
+MENU_INT2_HANDLER
+    LDR R1, =HOVERED_GAME ; Load Hovered Game Number
+    LDR R11, [R1] ; Store game number in R11 for context switching
+    BL RESET_MENU ; Reset the menu before switching games
+	MOV R0, #0x0000
+	BL FILL_SCREEN
+	BL DRAW_GAME1
+    B skip_toggle2
+    ;###########End Main Menu Handler###########
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -624,7 +855,7 @@ EXTI3_IRQHandler PROC
     ldr r0, =EXTI_BASE      ; EXTI base address
     ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
     add r0, r0, r1            ; Calculate EXTI_PR address
-    mov r1, #0x01             ; Bit mask for EXTI0
+    mov r1, #0x08             ; Bit mask for EXTI3
     str r1, [r0]              ; Clear the pending bit for EXTI0
 	; Debouncing logic
     ldr r2, =sys_time            ; Address of sys_time
@@ -650,7 +881,7 @@ SysTick_Handler PROC
 	POP     {R0, R1,LR}            ; Restore registers
 	bx lr
 	ENDP
-
-	END
+    LTORG
 ;================================================END INTERRUPT HANDLER=================================================
+	END
 ;========================================================END========================================================
