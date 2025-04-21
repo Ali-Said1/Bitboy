@@ -94,16 +94,18 @@ game_loop
         LDR r0, =score2
         LDRB r1, [r0]
 		CMP r1, #0x0A
+        BNE play
         LDR r0, =state
         MOV r1, #0x01           ; Set state to 1 (right_won)
         STRB r1, [r0]
         LDR r0, =score1
         LDRB r1, [r0]
 		CMP r1, #0x0A
+        BNE play
         LDR r0, =state
         MOV r1, #0x02           ; Set state to 1 (left_won)
         STRB r1, [r0]
-
+play
 		
 		BL apply_vel
 		BL check_collision_with_bats
