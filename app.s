@@ -1,4 +1,5 @@
 	AREA    DATA, DATA, READWRITE
+    EXPORT sys_time
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
 ;####################################################INTERRUPT VARAIBLES#######################################################
 btn1_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
