@@ -14,7 +14,7 @@ PONG_rbat_x  	EQU 0x01CC
 PONG_ball_hdim EQU	0x0A
 PONG_pad_hheight EQU 0x32
 PONG_pad_hwidth	EQU 0x05
-scale_factor EQU 0x0040
+scale_factor EQU 0x0006
 
     ALIGN
         AREA	PONGVARS, DATA, READWRITE
@@ -137,7 +137,7 @@ check_left_paddle
     ADD     R7, R6, #PONG_ball_hdim    ; R7 = R6 + ball_width/2
 	ADD     R7, R7, #PONG_pad_hwidth    	; R7 = R7 + pad_width/2
     CMP     R4, R7                  ; Compare ball X (R4) with (R6 + ball_width/2)
-    BGE     no_collision       		; If R4 > R6 + ball_width/2, jump to no_collision
+    BGT     no_collision       		; If R4 > R6 + ball_width/2, jump to no_collision
     CMP     R4, R6                  ; Compare ball X (R4) with R6
     BLT     score_rp       			; If R4 < R6
 
@@ -165,7 +165,7 @@ collision_detected
 	
 	SUB     R3, R5, R7         ; R3 = ball_y - paddle_y
 	; Load scale factor (0.25 in Q8.8)
-	LDR     R4, =0x0040        ; scale factor = 0.25 * 256 = 64
+	LDR     R4, =scale_factor        ; scale factor = 0.25 * 256 = 64
 	; Multiply difference by scale factor
 	MUL     R3, R3, R4         ; R3 = (ball_y - paddle_y) * 0.25 in Q8.8
 	; Shift down to get integer result (Q8.8 to int)
@@ -183,6 +183,10 @@ score_rp
 	LDR     R0, =PONG_ball_pos
 	LDR     R1, =0x00F000A0     ; XXXXYYYY
 	STR     R1, [R0]
+    ; Reset PONG_ball_vel
+    LDR R0, =ball_vel
+    LDR R1, =0xFF00         ; VxVxVyVy
+    STRH R1, [R0]
 	B 		continue_game
 score_lp
     ; Left paddle scored
@@ -194,6 +198,10 @@ score_lp
 	LDR     R0, =PONG_ball_pos
 	LDR     R1, =0x00F000A0     ; XXXXYYYY
 	STR     R1, [R0]
+    ; Reset PONG_ball_vel
+    LDR R0, =ball_vel
+    LDR R1, =0x0100         ; VxVxVyVy
+    STRH R1, [R0]
 	B 		continue_game
 continue_game
 	POP    {R0-R10, LR}

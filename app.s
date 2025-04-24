@@ -514,6 +514,7 @@ DRAW_MENU FUNCTION
 ;#######################################################Start Game Functions#######################################################
 DRAW_GAME1 FUNCTION
 	PUSH {R0-R11, LR}
+
     LDR.W R0, =PONG_state
     LDRB R1, [R0]
     CMP R1, #0
@@ -772,19 +773,6 @@ END_UPDATE_SCORE
     LDR R5, =PONG_bg_color
     BL DRAW_RECT
 
-; =================Draw Ball
-    LDR R2, =PONG_ball_pos
-    LDR R2, [R2]
-    LSR R0, R2, #16
-    MOV R3, #0xFFFF
-    AND R1, R2, R3
-    LDR R2, =PONG_ball_hdim
-    SUB R0, R0, R2
-    SUB R1, R1, R2
-    MOV R3, R2, LSL #1
-    MOV R4, R3
-    MOV R5, #0xFFFF
-    BL DRAW_RECT
 
 ; Poll button stats
     LDR R0, =GPIOA_BASE
@@ -843,6 +831,19 @@ LEFT_BAT_DOWN
     BL BAT_DOWN
 LOOP_FUNCTION
     BL PONG_LOOP
+; =================Draw Ball
+    LDR R2, =PONG_ball_pos
+    LDR R2, [R2]
+    LSR R0, R2, #16
+    MOV R3, #0xFFFF
+    AND R1, R2, R3
+    LDR R2, =PONG_ball_hdim
+    SUB R0, R0, R2
+    SUB R1, R1, R2
+    MOV R3, R2, LSL #1
+    MOV R4, R3
+    MOV R5, #0xFFFF
+    BL DRAW_RECT
 GAME1_FUNCTION_END
     POP {R0-R11, LR}
 	BX LR
