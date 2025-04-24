@@ -88,6 +88,8 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT PONG_pad_hheight
     IMPORT PONG_pad_hwidth
 	IMPORT PONG_GAME_MODE
+    IMPORT PONG_BAT_DOWN
+    IMPORT PONG_BAT_UP
 	AREA MYCODE, CODE, READONLY
 
 	ENTRY
@@ -650,7 +652,7 @@ GAME1_START_MENU
 	LTORG
 GAME1_RUNNING
 ; Update Score
-    MOV R0, #216
+    MOV R0, #214
     MOV R1, #10
     MOV R3, #56
     MOV R4, #26
@@ -659,52 +661,52 @@ GAME1_RUNNING
     MOV R0, #220
     MOV R1, #15
     LDR R3, =PONG_score1
-    LDR R4, [R3]
+    LDRB R4, [R3]
     CMP R4, #0
-    BL SCORE_ZERO
+    BLEQ SCORE_ZERO
     CMP R4, #1
-    BL SCORE_ONE
+    BLEQ SCORE_ONE
     CMP R4, #2
-    BL SCORE_TWO
+    BLEQ SCORE_TWO
     CMP R4, #3
-    BL SCORE_THREE
+    BLEQ SCORE_THREE
     CMP R4, #4
-    BL SCORE_FOUR
+    BLEQ SCORE_FOUR
     CMP R4, #5
-    BL SCORE_FIVE
+    BLEQ SCORE_FIVE
     CMP R4, #6
-    BL SCORE_SIX
+    BLEQ SCORE_SIX
     CMP R4, #7
-    BL SCORE_SEVEN
+    BLEQ SCORE_SEVEN
     CMP R4, #8
-    BL SCORE_EIGHT
+    BLEQ SCORE_EIGHT
     CMP R4, #9
-    BL SCORE_NINE
+    BLEQ SCORE_NINE
     BL DRAW_IMAGE ; Draw the score image
-    MOV R0, #244
+    MOV R0, #250
     MOV R1, #15
     LDR R3, =PONG_score2
-    LDR R4, [R3]
+    LDRB R4, [R3]
     CMP R4, #0
-    BL SCORE_ZERO
+    BLEQ SCORE_ZERO
     CMP R4, #1
-    BL SCORE_ONE
+    BLEQ SCORE_ONE
     CMP R4, #2
-    BL SCORE_TWO
+    BLEQ SCORE_TWO
     CMP R4, #3
-    BL SCORE_THREE
+    BLEQ SCORE_THREE
     CMP R4, #4
-    BL SCORE_FOUR
+    BLEQ SCORE_FOUR
     CMP R4, #5
-    BL SCORE_FIVE
+    BLEQ SCORE_FIVE
     CMP R4, #6
-    BL SCORE_SIX
+    BLEQ SCORE_SIX
     CMP R4, #7
-    BL SCORE_SEVEN
+    BLEQ SCORE_SEVEN
     CMP R4, #8
-    BL SCORE_EIGHT
+    BLEQ SCORE_EIGHT
     CMP R4, #9
-    BL SCORE_NINE
+    BLEQ SCORE_NINE
     BL DRAW_IMAGE
     B END_UPDATE_SCORE
 SCORE_ZERO
@@ -774,12 +776,12 @@ END_UPDATE_SCORE
     BL DRAW_RECT
 
 ; =================Remove pixel line from each bat
-    ; LDR R0, =PONG_rbat
-    ; LDR r1, =PONG_rbat_x
-    ; BL BAT_REMOVE_PIXEL_LINE
-    ; LDR R0, =PONG_lbat
-    ; LDR r1, =PONG_lbat_x
-    ; BL BAT_REMOVE_PIXEL_LINE
+    LDR R0, =PONG_rbat
+    LDR r1, =PONG_rbat_x
+    BL BAT_REMOVE_PIXEL_LINE
+    LDR R0, =PONG_lbat
+    LDR r1, =PONG_lbat_x
+    BL BAT_REMOVE_PIXEL_LINE
 
 ; Poll button stats
     LDR R0, =GPIOA_BASE
@@ -798,14 +800,16 @@ END_UPDATE_SCORE
     BEQ RIGHT_BAT_DOWN
     B LEFT_BAT_CHECKS
 RIGHT_BAT_UP
-    ; TODO: Bl to Bana PONG function
+    LDR R0, =PONG_rbat
+    BL PONG_BAT_UP
     MOV R7, R2
     AND R2, R2, R4
     CMP R2, R7
     BNE LEFT_BAT_CHECKS
 
 RIGHT_BAT_DOWN
-    ; TODO: Bl to Bana PONG function
+    LDR R0, =PONG_rbat
+    BL PONG_BAT_DOWN
 LEFT_BAT_CHECKS
     MVN R3, #(1 << 2) ; up arrow
     MVN R4, #(1 << 1) ; left arrow
@@ -819,13 +823,15 @@ LEFT_BAT_CHECKS
     BEQ LEFT_BAT_DOWN
     B LOOP_FUNCTION
 LEFT_BAT_UP
-    ; TODO: BL To Bana PONG function
+    LDR R0, =PONG_lbat
+    BL PONG_BAT_UP
     MOV R7, R2
     AND R7, R7, R4
     CMP R2, R7
     BNE LOOP_FUNCTION
 LEFT_BAT_DOWN
-    ; TODO: BL to Bana PONG function
+    LDR R0, =PONG_lbat
+    BL PONG_BAT_DOWN
 LOOP_FUNCTION
     BL PONG_LOOP
 ; =================Draw Ball
@@ -842,12 +848,12 @@ LOOP_FUNCTION
     MOV R5, #0xFFFF
     BL DRAW_RECT
 ; ================Update Bats
-    ; LDR R0, =PONG_rbat
-    ; LDR r1, =PONG_rbat_x
-    ; BL BAT_ADD_PIXEL_LINE
-    ; LDR R0, =PONG_lbat
-    ; LDR r1, =PONG_lbat_x
-    ; BL BAT_ADD_PIXEL_LINE
+    LDR R0, =PONG_rbat
+    LDR r1, =PONG_rbat_x
+    BL BAT_ADD_PIXEL_LINE
+    LDR R0, =PONG_lbat
+    LDR r1, =PONG_lbat_x
+    BL BAT_ADD_PIXEL_LINE
 GAME1_FUNCTION_END
     POP {R0-R11, LR}
 	BX LR
