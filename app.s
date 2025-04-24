@@ -523,7 +523,19 @@ DRAW_GAME1 FUNCTION
     BEQ GAME1_START_MENU
     CMP R1, #1
     BEQ.W GAME1_FUNCTION_END
+    CMP R1, #3
+    BEQ PONG_P1WIN
+    CMP R1, #4
+    BEQ PONG_P2WIN
     B GAME1_RUNNING
+PONG_P1WIN
+    MOV R0, #0x07E0 ; Green color
+    BL FILL_SCREEN ; Fill screen with green color
+    B.W GAME1_FUNCTION_END
+PONG_P2WIN
+    MOV R0, #0xF800 ; Red color
+    BL FILL_SCREEN ; Fill screen with red color
+    B.W GAME1_FUNCTION_END
 GAME1_START_MENU
     MOV R1, #1
     STRB R1, [R0]
@@ -811,6 +823,10 @@ RIGHT_BAT_DOWN
     LDR R0, =PONG_rbat
     BL PONG_BAT_DOWN
 LEFT_BAT_CHECKS
+    LDR R0, =PONG_GAME_MODE
+    LDRB R0, [R0]
+    TST R0, #0x01 ; Check if in multiplayer mode
+    BEQ LOOP_FUNCTION
     MVN R3, #(1 << 2) ; up arrow
     MVN R4, #(1 << 1) ; left arrow
     MOV R7, R2
@@ -1182,9 +1198,9 @@ GAME1_INT0_HANDLER
     BNE skip_toggle
     LDR R2, =PONG_GAME_MODE
     MOV R3, #1 ; Multiplayer mode
-    STR R3, [R2]
+    STRB R3, [R2]
     MOV R1, #2
-    STR R1, [R0] ; Game on
+    STRB R1, [R0] ; Game on
     LDR R0, =PONG_bg_color
     BL FILL_SCREEN
     BL DRAW_FULL_BATS
@@ -1272,14 +1288,14 @@ GO_END_FIRST_ROW
 ; ##########END Main Menu Handler##########
 GAME1_INT1_HANDLER
     LDR R0, =PONG_state
-    LDR R1, [R0]
+    LDRB R1, [R0]
     CMP R1, #1
     BNE skip_toggle
     LDR R2, =PONG_GAME_MODE
     MOV R3, #0 ; Singleplayer mode
-    STR R3, [R2]
+    STRB R3, [R2]
     MOV R1, #2
-    STR R1, [R0] ; Game on
+    STRB R1, [R0] ; Game on
     LDR R0, =PONG_bg_color
     BL FILL_SCREEN
     BL DRAW_FULL_BATS

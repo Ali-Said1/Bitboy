@@ -130,11 +130,7 @@ move_down
     ; Load the address of PONG_lbat into r0
     LDR     R0, =PONG_lbat
     ; Load current bat Y position into r1
-    LDR     R1, [R0]
-    ; Increment bat Y position
-    ADD     R1, R1, #1
-    ; Store the updated Y position back into PONG_lbat
-    STRH    R1, [R0]
+    BL PONG_BAT_DOWN
     ; Jump to end_follow
     B       end_follow
 
@@ -142,12 +138,9 @@ move_up
     ; Move the left bat up
     ; Load the address of PONG_lbat into r0
     LDR     R0, =PONG_lbat
-    ; Load current bat Y position into r1
-    LDR     R1, [R0]
-    ; Decrement bat Y position
-    SUB     R1, R1, #1
-    ; Store the updated Y position back into PONG_lbat
-    STRH    R1, [R0]
+
+    BL PONG_BAT_UP
+
 
 end_follow
     ; Restore registers r0 to r3 and LR from the stack
