@@ -85,11 +85,109 @@ PONG_RESET FUNCTION
     ENDFUNC
 PONG_LOOP FUNCTION
         PUSH{R0-R11, LR}
+        LDR     R0, =PONG_GAME_MODE
+        LDRB    R0, [R0]            ; Load game mode (0 = single player, 1 = multiplayer)
+        CMP     R0, #0              ; Check if single player mode
+        BLEQ     PONG_FOLLOW        ; If yes, branch to PONG_FOLLOW
+        BL check_win_condition
 		BL apply_vel
 		BL check_collision_with_bats
 		BL check_wall_collision
         POP{R0-R11, LR}
         BX LR
+
+; ----------------------------------------------------
+; PONG_FOLLOW: Computer controlled lbat
+PONG_FOLLOW
+    ; Save registers r0 to r3 and LR on the stack
+    PUSH {r0-r3, lr}
+
+    ; Load the address of PONG_ball_pos into r3 and then load its lower halfword (ball Y position)
+    LDR     r3, =PONG_ball_pos 
+    LDRH    r3, [r3]
+
+    ; Load the address of PONG_lbat into r2 and then load its current Y position
+    LDR     r2, =PONG_lbat
+    LDRH    r2, [r2]
+
+    ; Compare ball Y position (r3) with left bat Y position (r2)
+    CMP     r3, r2
+
+    ; If ball is below the left bat, branch to move_down
+    BGT     move_down
+
+    ; Compare ball Y position (r3) with left bat Y position (r2) again
+    CMP     r3, r2
+
+    ; If ball is above the left bat, branch to move_up
+    BLT     move_up
+
+    ; Otherwise, do nothing and jump to end_follow
+    B       end_follow
+
+move_down
+    ; Move the left bat down
+    ; Load the address of PONG_lbat into r0
+    LDR     R0, =PONG_lbat
+    ; Load current bat Y position into r1
+    LDR     R1, [R0]
+    ; Increment bat Y position
+    ADD     R1, R1, #1
+    ; Store the updated Y position back into PONG_lbat
+    STRH    R1, [R0]
+    ; Jump to end_follow
+    B       end_follow
+
+move_up
+    ; Move the left bat up
+    ; Load the address of PONG_lbat into r0
+    LDR     R0, =PONG_lbat
+    ; Load current bat Y position into r1
+    LDR     R1, [R0]
+    ; Decrement bat Y position
+    SUB     R1, R1, #1
+    ; Store the updated Y position back into PONG_lbat
+    STRH    R1, [R0]
+
+end_follow
+    ; Restore registers r0 to r3 and LR from the stack
+    POP     {r0-r3, lr}
+    BX      lr
+
+
+; ----------------------------------------------------
+; Function: check_win_condition
+;    ; Inputs: None (accesses PONG_score1 and PONG_score2 via memory)
+;    ; Outputs: None (modifies PONG_state if a player wins)
+;    ; Clobbers: None (saves/restores R0-R10, LR)
+check_win_condition
+    PUSH    {R0-R2, LR}        ; Save R0-R10 and LR
+    LDR     R0, =PONG_score1       ; R0 = address of PONG_score1
+    LDRB    R1, [R0]              ; R1 = PONG_score1
+    LDR     R0, =PONG_score2       ; R0 = address of PONG_score2
+    LDRB    R2, [R0]              ; R2 = PONG_score2
+
+    CMP     R1, #0x07           ; Check if PONG_score1 >= 7
+    BGE     left_player_wins     ; If yes, branch to left_player_wins
+    CMP     R2, #0x07           ; Check if PONG_score2 >= 7
+    BGE     right_player_wins     ; If yes, branch to right_player_wins
+    B       end_check_win_condition  ; No player has won, return
+
+right_player_wins
+    LDR     R0, =PONG_state       ; R0 = address of PONG_state
+    MOV     R1, #0x03           ; Set PONG_state to 3 (right player wins)
+    STRB    R1, [R0]            ; Store PONG_state
+    B       end_check_win_condition
+
+left_player_wins
+    LDR     R0, =PONG_state       ; R0 = address of PONG_state
+    MOV     R1, #0x04           ; Set PONG_state to 4 (left player wins)
+    STRB    R1, [R0]            ; Store PONG_state
+
+end_check_win_condition
+    POP     {R0-R2, LR}        ; Restore R0-R10 and LR
+    BX     LR                  ; Return
+
 ; ----------------------------------------------------
 ; check_collision
     ; Assume R0 = address of PONG_ball_pos
