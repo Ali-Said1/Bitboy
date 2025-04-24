@@ -773,6 +773,13 @@ END_UPDATE_SCORE
     LDR R5, =PONG_bg_color
     BL DRAW_RECT
 
+; =================Remove pixel line from each bat
+    ; LDR R0, =PONG_rbat
+    ; LDR r1, =PONG_rbat_x
+    ; BL BAT_REMOVE_PIXEL_LINE
+    ; LDR R0, =PONG_lbat
+    ; LDR r1, =PONG_lbat_x
+    ; BL BAT_REMOVE_PIXEL_LINE
 
 ; Poll button stats
     LDR R0, =GPIOA_BASE
@@ -791,20 +798,14 @@ END_UPDATE_SCORE
     BEQ RIGHT_BAT_DOWN
     B LEFT_BAT_CHECKS
 RIGHT_BAT_UP
-    LDR R0, =PONG_rbat
-    MOVW R1, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
-    MOVT R1, #:upper16:PONG_rbat_x  ; Load the upper 16 bits of the address
-    BL BAT_UP
+    ; TODO: Bl to Bana PONG function
     MOV R7, R2
     AND R2, R2, R4
     CMP R2, R7
     BNE LEFT_BAT_CHECKS
 
 RIGHT_BAT_DOWN
-    LDR R0, =PONG_rbat
-    MOVW R1, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
-    MOVT R1, #:upper16:PONG_rbat_x  ; Load the upper 16 bits of the address
-    BL BAT_DOWN
+    ; TODO: Bl to Bana PONG function
 LEFT_BAT_CHECKS
     MVN R3, #(1 << 2) ; up arrow
     MVN R4, #(1 << 1) ; left arrow
@@ -818,17 +819,13 @@ LEFT_BAT_CHECKS
     BEQ LEFT_BAT_DOWN
     B LOOP_FUNCTION
 LEFT_BAT_UP
-    LDR R0, =PONG_lbat
-    LDR R1, =PONG_lbat_x
-    BL BAT_UP
+    ; TODO: BL To Bana PONG function
     MOV R7, R2
     AND R7, R7, R4
     CMP R2, R7
     BNE LOOP_FUNCTION
 LEFT_BAT_DOWN
-    LDR R0, =PONG_lbat
-    LDR R1, =PONG_lbat_x
-    BL BAT_DOWN
+    ; TODO: BL to Bana PONG function
 LOOP_FUNCTION
     BL PONG_LOOP
 ; =================Draw Ball
@@ -844,59 +841,25 @@ LOOP_FUNCTION
     MOV R4, R3
     MOV R5, #0xFFFF
     BL DRAW_RECT
+; ================Update Bats
+    ; LDR R0, =PONG_rbat
+    ; LDR r1, =PONG_rbat_x
+    ; BL BAT_ADD_PIXEL_LINE
+    ; LDR R0, =PONG_lbat
+    ; LDR r1, =PONG_lbat_x
+    ; BL BAT_ADD_PIXEL_LINE
 GAME1_FUNCTION_END
     POP {R0-R11, LR}
 	BX LR
 	ENDFUNC
-
-; ######### BAT UP FUNCTION
-; General function for both bats
-; R0 has the handled bat (right or left)
-; R1 has the bat x
-BAT_UP FUNCTION
-    PUSH {R1-R5, LR}
-    LDRH R2, [R0]
-    CMP R2, #0x32
-    BEQ BAT_UP_END
-    ; Remove one pixel line from the end of the bat
-    PUSH {R0, R1}
-    LDR R3, =PONG_pad_hwidth
-    SUB R0, R1, R3 ; Start X
-    LDR R3, =PONG_pad_hheight
-    ADD R1, R2, R3
-    SUB R1, R1, #1 ; Start Y
-    LDR R3, =PONG_pad_hwidth
-    LSL R3, #1
-    MOV R4, #1
-    LDR R5, =PONG_bg_color
-    BL DRAW_RECT
-    POP {R0, R1}
-    LDRH R2, [R0]
-    SUB R2, R2, #1 ; Move the bat up by one pixel
-    STRH R2, [R0] ; Update the bat position
-    LDR R3, =PONG_pad_hwidth
-    SUB R0, R1, R3 ; Start X
-    LDR R3, =PONG_pad_hheight
-    SUB R1, R2, R3 ; Start Y
-    LDR R3, =PONG_pad_hwidth
-    LSL R3, #1
-    MOV R4, #1
-    LDR R5, =0xFFFF
-    BL DRAW_RECT ; Draw a new pixel at the top of the bat
-BAT_UP_END
-    POP {R1-R5, LR}
-    BX LR
-    ENDFUNC
-; ######### BAT DOWN FUNCTION
+; ######### BAT_REMOVE_PIXEL_LINE FUNCTION
 ; General function for both bats
 ; R0 has the handled bat (right or left)
 ; R1 has the handled bat x
-BAT_DOWN FUNCTION
+BAT_REMOVE_PIXEL_LINE FUNCTION
     PUSH {R1-R5, LR}
-    LDRH R2, [R0]
-    CMP R2, #0x10E
-    BEQ BAT_DOWN_END
     ; Remove one pixel line from the start of the bat
+    LDRH R2, [R0]
     PUSH {R0, R1}
     LDR R3, =PONG_pad_hwidth
     SUB R0, R1, R3 ; Start X
@@ -909,8 +872,6 @@ BAT_DOWN FUNCTION
     BL DRAW_RECT
     POP {R0, R1}
     LDRH R2, [R0]
-    ADD R2, R2, #1 ; Move the bat up by one pixel
-    STRH R2, [R0] ; Update the bat position
     LDR R3, =PONG_pad_hwidth
     SUB R0, R1, R3 ; Start X
     LDR R3, =PONG_pad_hheight
@@ -919,13 +880,45 @@ BAT_DOWN FUNCTION
     LDR R3, =PONG_pad_hwidth
     LSL R3, #1
     MOV R4, #1
-    LDR R5, =0xFFFF
-    BL DRAW_RECT ; Draw a new pixel at the top of the bat
-BAT_DOWN_END
+    LDR R5, =PONG_bg_color
+    BL DRAW_RECT
     POP {R1-R5, LR}
     BX LR
     ENDFUNC
-	LTORG
+; ######### BAT_ADD_PIXEL_LINE FUNCTION
+; General function for both bats
+; R0 has the handled bat (right or left)
+; R1 has the handled bat x
+BAT_ADD_PIXEL_LINE FUNCTION
+    PUSH {R1-R5, LR}
+    ; Remove one pixel line from the start of the bat
+    LDRH R2, [R0]
+    PUSH {R0, R1}
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    SUB R1, R2, R3 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #2
+    LDR R5, =0xFFFF
+    BL DRAW_RECT
+    POP {R0, R1}
+    LDRH R2, [R0]
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    ADD R1, R2, R3
+    SUB R1, R1, #2 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #2
+    LDR R5, =0xFFFF
+    BL DRAW_RECT
+    POP {R1-R5, LR}
+    BX LR
+    ENDFUNC
+    LTORG
 DRAW_FULL_BATS FUNCTION
     PUSH {R0-R5, LR}
     MOVW R0, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
