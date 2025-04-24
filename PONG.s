@@ -222,7 +222,7 @@ check_collision_with_bats
 no_negate_rbat
     SUB R8, R8, #PONG_ball_hdim
 	CMP     R8, #PONG_pad_hheight
-    BLT     collision_detected
+    BLT     collision_detected_r
 
 
 check_left_paddle
@@ -246,18 +246,31 @@ check_left_paddle
 no_negate_lbat
     SUB     R8, R8, #PONG_ball_hdim
 	CMP     R8, #PONG_pad_hheight
-    BLT     collision_detected
+    BLT     collision_detected_l
 no_collision
     ; No collision
     B       continue_game
 
-collision_detected
+collision_detected_r
 	LDR     R0, =ball_vel     	; R0 points to ball_vel
 	LDRSB   R8, [R0, #1]      	; Load ball_vel (VxVx)
+    TST   R8, #0x80000000
+    BNE   bounce_y_comp
+	RSBS	R8, R8, #0			; Change X direction
+	STRB   	R8, [R0, #1]      	; Store ball_vel (VxVx)
+	B        bounce_y_comp
+
+collision_detected_l
+	LDR     R0, =ball_vel     	; R0 points to ball_vel
+	LDRSB   R8, [R0, #1]      	; Load ball_vel (VxVx)
+    TST   R8, #0x80000000
+    BE   bounce_y_comp
 	RSBS	R8, R8, #0			; Change X direction
 	STRB   	R8, [R0, #1]      	; Store ball_vel (VxVx)
 	
-	SUB     R3, R5, R7         ; R3 = ball_y - paddle_y
+
+bounce_y_comp
+    SUB     R3, R5, R7         ; R3 = ball_y - paddle_y
 	; Load scale factor (0.25 in Q8.8)
 	LDR     R4, =scale_factor        ; scale factor = 0.25 * 256 = 64
 	; Multiply difference by scale factor
@@ -267,6 +280,7 @@ collision_detected
 	; Store result in *vy (at address in R2)
 	STRB     R3, [R0]
 	B 		continue_game
+
 score_rp
     ; Right paddle scored
 	LDR		R0, =PONG_score2
