@@ -404,6 +404,11 @@
               <FileType>2</FileType>
               <FilePath>.\gamelogo.s</FilePath>
             </File>
+            <File>
+              <FileName>PONG.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\PONG.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

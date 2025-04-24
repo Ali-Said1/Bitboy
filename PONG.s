@@ -1,135 +1,104 @@
-		; Constants
+		; Constants['']
+        AREA PONGCONST, DATA, READONLY
+        EXPORT PONG_bg_color
+        EXPORT PONG_lbat_x
+        EXPORT PONG_rbat_x
+        EXPORT PONG_ball_hdim
+        EXPORT PONG_pad_hheight
+        EXPORT PONG_pad_hwidth
+PONG_bg_color	EQU 0x6e3f
 Width       EQU 480
-Height      EQU 360
-lbat_x  	EQU 0x0014
-rbat_x  	EQU 0x01CC
-ball_hwidth EQU	0x0A
-pad_hheight EQU 0x64
-pad_hwidth	EQU 0x05
+Height      EQU 320
+PONG_lbat_x  	EQU 0x0014
+PONG_rbat_x  	EQU 0x01CC
+PONG_ball_hdim EQU	0x0A
+PONG_pad_hheight EQU 0x32
+PONG_pad_hwidth	EQU 0x05
 scale_factor EQU 0x0040
-		AREA    VECTORS, CODE, READONLY
-        EXPORT  __Vectors
-__Vectors
-        DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
-        DCD     Reset_Handler   ; Reset handler address
 
-        AREA	DATA, DATA, READWRITE
+    ALIGN
+        AREA	PONGVARS, DATA, READWRITE
 		EXPORT PONG
-		EXPORT bg_color
-		EXPORT ball_pos
-		EXPORT lbat
-		EXPORT rbat
-		EXPORT score1
-		EXPORT score2
-		EXPORT ball_vel
+		EXPORT PONG_ball_pos
+		EXPORT PONG_lbat
+		EXPORT PONG_rbat
+		EXPORT PONG_score1
+		EXPORT PONG_score2
+        EXPORT PONG_state
+        EXPORT PONG_GAME_MODE
+		;EXPORT ball_vel
 
 PONG
 		
-ball_pos    DCD 0x01AF00A0	;XXXXYYYY
-bg_color	DCW 0x6e3f
-lbat    	DCW 0x00A0		;YYYY (X is constant 20)
-rbat		DCW 0x00A0		;YYYY (X is constant 460)
-score1		DCB 0x00		; max score is 255 (FF)
-score2		DCB 0x00		; max score is 255 (FF)
+PONG_ball_pos    DCD 0x00F000A0	;XXXXYYYY
+
+PONG_lbat    	DCW 0x00A0		;YYYY (X is constant 20)
+PONG_rbat		DCW 0x00A0		;YYYY (X is constant 460)
+PONG_score1		DCB 0x00		; max score is 255 (FF)
+PONG_score2		DCB 0x00		; max score is 255 (FF)
 ball_vel	DCW 0x0100		;(Vx)(Vx)(Vy)(Vy) (This is pixel per frame, a more accurate simulation would be per second, but this is more complicated.)
-state        DCB 0x00		; 0 = game_on, 1 = right_won, 2 = left_won
-prng_state
-    DCD     0x12345678      ; Initial seed for the PRNG
+PONG_state        DCB 0x00		; 0 = game_starting, 1 = game mode select, 2 =game_on, 3 = right_won, 4 = left_won
 
-        AREA CODE, CODE, READONLY
-		EXPORT Reset_Handler
-		EXPORT game_loop
-Reset_Handler
+PONG_GAME_MODE        DCB 0x00		; 0 = Single player, 1= Multiplayer
 
-        MOV sp, r13
-        MOV r8, #0                ; Simulation steps
-
-start
+        AREA PONGCODE, CODE, READONLY
+		EXPORT PONG_RESET
+		EXPORT PONG_LOOP
+PONG_RESET FUNCTION
 		; reset all data here
-		; Store into bg_color (16-bit)
-        LDR     R0, =bg_color
-        MOV     R1, #0x6E3F         ; RGB565 value
-        STRH    R1, [R0]            ; Store halfword
-
-        
-		
-		; Store into ball_pos (32-bit)
-        LDR     R0, =ball_pos
+		; Store into PONG_ball_pos (32-bit)
+        LDR     R0, =PONG_ball_pos
         LDR     R1, =0x00F000A0     ; XXXXYYYY
         STR     R1, [R0]
 
-        ; Store into lbat (16-bit)
-        LDR     R0, =lbat
-        LDR     R1, =0x00A0     ; WWHHYYYY
+        ; Store into PONG_lbat (16-bit)
+        LDR     R0, =PONG_lbat
+        LDR     R1, =0x00A0     ; YYYY
         STRH     R1, [R0]
 
-        ; Store into rbat (16-bit)
-        LDR     R0, =rbat
-        LDR     R1, =0x00A0     ; Same as lbat for now
+        ; Store into PONG_rbat (16-bit)
+        LDR     R0, =PONG_rbat
+        LDR     R1, =0x00A0     ; Same as PONG_lbat for now
         STRH     R1, [R0]
 
         ; Store into score (8-bit)
-        LDR     R0, =score1
-        MOV     R1, #0x00           ; Set score1 to 0
+        LDR     R0, =PONG_score1
+        MOV     R1, #0x00           ; Set PONG_score1 to 0
         STRB    R1, [R0]
 		
 		; Store into score (8-bit)
-        LDR     R0, =score2
-        MOV     R1, #0x00           ; Set score2 to 0
+        LDR     R0, =PONG_score2
+        MOV     R1, #0x00           ; Set PONG_score2 to 0
         STRB    R1, [R0]
 
-        LDR    R0, =state
-        MOV    R1, #0x00           ; Set state to 0 (game_on)
+        LDR    R0, =PONG_state
+        MOV    R1, #0x00           ; Set PONG_state to 0 (game_on)
         STRB   R1, [R0]
 
         ; Store into ball_vel (16-bit)
         LDR     R0, =ball_vel
         MOV     R1, #0xFF00         ; VxVxVyVy
         STRH    R1, [R0]
-		LDR r0, =PONG
-		LDR r1, =ball_vel
-game_loop
-        ADD r8, r8, #1
-
-        LDR r0, =score2
-        LDRB r1, [r0]
-		CMP r1, #0x0A
-        BNE play
-        LDR r0, =state
-        MOV r1, #0x01           ; Set state to 1 (right_won)
-        STRB r1, [r0]
-        LDR r0, =score1
-        LDRB r1, [r0]
-		CMP r1, #0x0A
-        BNE play
-        LDR r0, =state
-        MOV r1, #0x02           ; Set state to 1 (left_won)
-        STRB r1, [r0]
-play
-		
+    ENDFUNC
+PONG_LOOP FUNCTION
+        PUSH{R0-R11, LR}
 		BL apply_vel
 		BL check_collision_with_bats
 		BL check_wall_collision
-		BL follow
-		LDR r0, =PONG
-		LDR r1, =ball_vel
-        B game_loop
-
-hang
-        B hang
-
+        POP{R0-R11, LR}
+        BX LR
 ; ----------------------------------------------------
 ; check_collision
-    ; Assume R0 = address of ball_pos
+    ; Assume R0 = address of PONG_ball_pos
     ; Assume R1 = address of rbat_y
     ; Assume R2 = address of lbat_y
 check_collision_with_bats
 	PUSH    {R0-R10, LR}
-	LDR 	R0, =ball_pos
-	LDR 	R1, =rbat
-	LDR 	R2, =lbat
-    ; Load ball_pos (32 bits) into R3
-    LDR     R3, [R0]              ; R3 = ball_pos
+	LDR 	R0, =PONG_ball_pos
+	LDR 	R1, =PONG_rbat
+	LDR 	R2, =PONG_lbat
+    ; Load PONG_ball_pos (32 bits) into R3
+    LDR     R3, [R0]              ; R3 = PONG_ball_pos
 
     ; Extract ball_x from high halfword
     LSR    	R4, R3, #16           ; R4 = ball_x
@@ -138,14 +107,14 @@ check_collision_with_bats
     UXTH    R5, R3                ; R5 = ball_y
 
     ; --- Check against Right Paddle ---
-    MOV	    R6, #rbat_x
+    MOV	    R6, #PONG_rbat_x
 
-    SUB     R7, R6, #ball_hwidth    ; R5 = R6 - ball_width/2
-	SUB     R7, R7, #pad_hwidth    ; R5 = R6 - ball_width/2
+    SUB     R7, R6, #PONG_ball_hdim    ; R7 = R6 - ball_width/2
+	SUB     R7, R7, #PONG_pad_hwidth    ; R7 = R7 - pad_width/2
     CMP     R4, R7                  ; Compare ball X (R4) with (R6 - ball_width/2)
-    BLT     check_left_paddle       ; If R4 < R6 - ball_width/2, jump to check_left_paddle (out of range)
+    BLT     check_left_paddle       ; If R4 < R6 - (ball_width/2 + pad_width/2), jump to check_left_paddle (out of range)
     CMP     R4, R6                  ; Compare ball X (R4) with R6
-    BGT     score_lp		       	; If R4 > R6, jump to check_left_paddle (out of range)
+    BGT     score_lp		       	; If R4 > R6, jump to add point to score to left player
 
 
     ; Ball is at right paddle X, check Y
@@ -157,15 +126,16 @@ check_collision_with_bats
     BCS no_negate_rbat       ; Branch to no_negate if C = 1 (no borrow, R8 is positive)
     RSBS R8, R8, #0     ; R8 = 0 - R0 (negate R0 to get |R5 - R7|)
 no_negate_rbat
-	CMP     R8, #pad_hheight
-    BLS     collision_detected
+    SUB R8, R8, #PONG_ball_hdim
+	CMP     R8, #PONG_pad_hheight
+    BLT     collision_detected
 
 
 check_left_paddle
-    MOVS    R6, #lbat_x
+    MOVS    R6, #PONG_lbat_x
 
-    ADD     R7, R6, #ball_hwidth    ; R7 = R6 + ball_width/2
-	ADD     R7, R7, #pad_hwidth    	; R7 = R7 + pad_width/2
+    ADD     R7, R6, #PONG_ball_hdim    ; R7 = R6 + ball_width/2
+	ADD     R7, R7, #PONG_pad_hwidth    	; R7 = R7 + pad_width/2
     CMP     R4, R7                  ; Compare ball X (R4) with (R6 + ball_width/2)
     BGE     no_collision       		; If R4 > R6 + ball_width/2, jump to no_collision
     CMP     R4, R6                  ; Compare ball X (R4) with R6
@@ -180,8 +150,9 @@ check_left_paddle
     BCS 	no_negate_lbat       	; Branch to no_negate if C = 1 (no borrow, R8 is positive)
     RSBS 	R8, R8, #0     			; R8 = 0 - R8 (negate R0 to get |R1 - R2|)
 no_negate_lbat
-	CMP     R8, #pad_hheight
-    BLS     collision_detected
+    SUB     R8, R8, #PONG_ball_hdim
+	CMP     R8, #PONG_pad_hheight
+    BLT     collision_detected
 no_collision
     ; No collision
     B       continue_game
@@ -204,23 +175,23 @@ collision_detected
 	B 		continue_game
 score_rp
     ; Right paddle scored
-	LDR		R0, =score2
+	LDR		R0, =PONG_score2
 	LDRB	R1, [R0]
 	ADD		R1, R1, #0x1
 	STRB	R1, [R0]
-	; Reset ball_pos
-	LDR     R0, =ball_pos
+	; Reset PONG_ball_pos
+	LDR     R0, =PONG_ball_pos
 	LDR     R1, =0x00F000A0     ; XXXXYYYY
 	STR     R1, [R0]
 	B 		continue_game
 score_lp
     ; Left paddle scored
-	LDR		R0, =score1
+	LDR		R0, =PONG_score1
 	LDRB	R1, [R0]
 	ADD		R1, R1, #0x1
 	STRB	R1, [R0]
-	; Reset ball_pos
-	LDR     R0, =ball_pos
+	; Reset PONG_ball_pos
+	LDR     R0, =PONG_ball_pos
 	LDR     R1, =0x00F000A0     ; XXXXYYYY
 	STR     R1, [R0]
 	B 		continue_game
@@ -230,25 +201,25 @@ continue_game
 
 
 ; Function: check_wall_collision
-    ; Inputs: None (accesses ball_pos and ball_vel via memory)
+    ; Inputs: None (accesses PONG_ball_pos and ball_vel via memory)
     ; Outputs: None (modifies ball_vel[0] if collision detected)
     ; Clobbers: None (saves/restores R0-R10, LR)
 check_wall_collision
     PUSH    {R0-R10, LR}        ; Save R0-R10 and LR
 
-    ; Load ball_pos (16 bits) into R5
-    LDR     R0, =ball_pos       ; R0 = address of ball_pos
-    LDRH     R5, [R0]            ; R5 = ball_pos
+    ; Load PONG_ball_pos (16 bits) into R5
+    LDR     R0, =PONG_ball_pos       ; R0 = address of PONG_ball_pos
+    LDRH     R5, [R0]            ; R5 = PONG_ball_pos
 
-    ; Check for top wall collision (y < ball_hwidth)
-    CMP     R5, #ball_hwidth              ; Compare y with ball_hwidth
-    BLT     wall_collision_detected     ; Branch if y < ball_hwidth (signed, though y is unsigned, so this won't trigger)
+    ; Check for top wall collision (y < PONG_ball_hdim)
+    CMP     R5, #PONG_ball_hdim              ; Compare y with PONG_ball_hdim
+    BLT     wall_collision_detected     ; Branch if y < PONG_ball_hdim (signed, though y is unsigned, so this won't trigger)
 
-    ; Check for bottom wall collision (y >= HEIGHT - ball_hwidth)
+    ; Check for bottom wall collision (y >= HEIGHT - PONG_ball_hdim)
     MOV    R1, #Height         ; R1 = HEIGHT
-	SUB		R1, R1, #ball_hwidth ; R1 = HEIGHT - ball_hwidth
+	SUB		R1, R1, #PONG_ball_hdim ; R1 = HEIGHT - PONG_ball_hdim
     CMP     R5, R1              ; Check collision with bottom wall
-    BGE     wall_collision_detected  ; Branch if (y >= HEIGHT - ball_hwidth)
+    BGE     wall_collision_detected  ; Branch if (y >= HEIGHT - PONG_ball_hdim)
 
     ; No collision
     B       check_wall_collision_ret       ; Jump to end
@@ -270,11 +241,11 @@ check_wall_collision_ret
 
 
 ; ----------------------------------------------------
-; apply_vel: applies the velocity vector on the ball_pos
+; apply_vel: applies the velocity vector on the PONG_ball_pos
 apply_vel
         PUSH    {R0-R4, LR}        	; Save callee-saved register and return address
         LDR     R0, =ball_vel     	; R0 points to ball_vel
-        LDR     R1, =ball_pos     	; R1 points to ball_pos
+        LDR     R1, =PONG_ball_pos     	; R1 points to PONG_ball_pos
 
         LDRSB     R2, [R0, #1]      ; Load ball_vel (VxVx)
 		TST   R2, #0x80000000   	; Test if bit 31 is set
@@ -312,8 +283,7 @@ subtract_y
 end_y
         POP     {R0-R4, LR}        ; Restore registers
         BX      LR                	; Return
-
-
+	ENDFUNC
 ; Not needed but may be useful later.
 ;; Function: get_random_bounded
 ;    ; Inputs: R3 = range bound (positive integer, output will be in [-R3, R3])
@@ -326,22 +296,22 @@ end_y
 ;    MOV    R5, R3              ; R5 = R3 (preserve R3)
 ;
 ;    ; Generate random number
-;    ; Load PRNG state
+;    ; Load PRNG PONG_state
 ;    LDR     R4, =prng_state     ; R4 = address of prng_state
-;    LDR     R0, [R4]            ; R0 = current state
+;    LDR     R0, [R4]            ; R0 = current PONG_state
 ;
-;    ; Compute: state = state * 1664525
+;    ; Compute: PONG_state = PONG_state * 1664525
 ;    MOV    R1, #0x60D          ; Lower 16 bits of multiplier
 ;    MOVT    R1, #0x196          ; Upper 16 bits of multiplier
-;    MUL    R2, R0, R1          ; R2 = state * 1664525 (low 32 bits)
+;    MUL    R2, R0, R1          ; R2 = PONG_state * 1664525 (low 32 bits)
 ;
 ;    ; Add increment: 1013904223 = 0x3C6EF35F
 ;    MOV    R1, #0xF35F         ; Lower 16 bits of increment
 ;    MOVT    R1, #0x3C6E         ; Upper 16 bits of increment
 ;    ADD    R2, R2, R1          ; R2 = R2 + 1013904223 (mod 2^32 via overflow)
 ;
-;    ; Store new state
-;    STR     R2, [R4]            ; prng_state = new state
+;    ; Store new PONG_state
+;    STR     R2, [R4]            ; prng_state = new PONG_state
 ;
 ;    ; Move result to R0
 ;    MOV    R0, R2              ; R0 = random number
@@ -366,13 +336,13 @@ end_y
 ; follow: For Simulation purposes
 follow
         PUSH {r3-r12, lr}
-        LDR 	r10, =ball_pos
+        LDR 	r10, =PONG_ball_pos
         LDRH 	r6, [r10]
 		ADD		r6, r6, #20
-        LDR 	r10, =rbat
+        LDR 	r10, =PONG_rbat
         STRH 	r6, [r10]
 		SUB		r6, r6, #40
-		;LDR 	r10, =lbat
+		;LDR 	r10, =PONG_lbat
         ;STRH 	r6, [r10]
         POP {r3-r12, lr}
         BX lr
@@ -382,32 +352,33 @@ follow
 
 ; ----------------------------------------------------
 ; rbat_down: Move right bat down
-rbat_down
-        PUSH {r3-r12, lr}
-        LDR r10, =rbat
-        LDRH r6, [r10]
-        ADDS r6, r6, #3
-		MOV r7, #Height
-		SUB r7, r7, #pad_hheight
-        CMP r6, r7
-        BGE rbat_down_return
-        STRH r6, [r10]
-rbat_down_return
-        POP {r3-r12, lr}
-        BX lr
+; rbat_down
+;         PUSH {r3-r12, lr}
+;         LDR r10, =PONG_rbat
+;         LDRH r6, [r10]
+;         ADDS r6, r6, #3
+; 		MOV r7, #Height
+; 		SUB r7, r7, #PONG_pad_hheight
+;         CMP r6, r7
+;         BGE rbat_down_return
+;         STRH r6, [r10]
+; rbat_down_return
+;         POP {r3-r12, lr}
+;         BX lr
 
-; ----------------------------------------------------
-; rbat_up: Move right bat up
-rbat_up
-        PUSH {r3-r12, lr}
-        LDR r10, =rbat
-        LDRH r6, [r10]
-        SUB r6, r6, #3
-        CMP r6, #pad_hheight
-        BLE rbat_up_return
-        STRH r6, [r10]
-rbat_up_return
-        POP {r3-r12, lr}
-        BX lr
+; ; ----------------------------------------------------
+; ; rbat_up: Move right bat up
+; rbat_up
+;         PUSH {r3-r12, lr}
+;         LDR r10, =PONG_rbat
+;         LDRH r6, [r10]
+;         SUB r6, r6, #3
+;         CMP r6, #PONG_pad_hheight
+;         BLE rbat_up_return
+;         STRH r6, [r10]
+; rbat_up_return
+;         POP {r3-r12, lr}
+;         BX lr
 
 
+    END

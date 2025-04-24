@@ -71,6 +71,23 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 	EXPORT EXTI2_IRQHandler
 	EXPORT EXTI3_IRQHandler
 	EXPORT SysTick_Handler
+    ;==============================PONG IMPORTS=================================
+    IMPORT PONG
+    IMPORT PONG_ball_pos
+    IMPORT PONG_lbat
+    IMPORT PONG_rbat
+    IMPORT PONG_score1
+    IMPORT PONG_score2
+    IMPORT PONG_bg_color
+    IMPORT PONG_state
+    IMPORT PONG_RESET
+	IMPORT PONG_LOOP
+    IMPORT PONG_lbat_x
+    IMPORT PONG_rbat_x
+    IMPORT PONG_ball_hdim
+    IMPORT PONG_pad_hheight
+    IMPORT PONG_pad_hwidth
+	IMPORT PONG_GAME_MODE
 	AREA MYCODE, CODE, READONLY
 
 	ENTRY
@@ -82,6 +99,7 @@ __main FUNCTION
     LDR R0, =0x0000 ; Load the color value
     BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
 	BL RESET_MENU
+    BL PONG_RESET
 	BL DRAW_MENU
 	MOV R11, #0
 MAIN_LOOP
@@ -491,30 +509,454 @@ DRAW_MENU FUNCTION
     POP {R0-R4, LR}
     BX LR
     ENDFUNC
+	LTORG
 ;#######################################################END Menu Functions#######################################################
 ;#######################################################Start Game Functions#######################################################
 DRAW_GAME1 FUNCTION
-	PUSH {R0-R3, LR}
+	PUSH {R0-R11, LR}
+    LDR.W R0, =PONG_state
+    LDRB R1, [R0]
+    CMP R1, #0
+    BEQ GAME1_START_MENU
+    CMP R1, #1
+    BEQ.W GAME1_FUNCTION_END
+    B GAME1_RUNNING
+GAME1_START_MENU
+    MOV R1, #1
+    STRB R1, [R0]
     LDR R3, =char_80
     MOV R0, #200
-    MOV R1, #152
+    MOV R1, #144
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    MOV R5, #500
+    BL DELAY_MS
     ADD R0, R0, #20
-    MOV R1, #152
+    MOV R1, #144
 	LDR R3, =char_79
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    MOV R5, #500
+    BL DELAY_MS
     ADD R0, R0, #21
-	MOV R1, #152
+	MOV R1, #144
     LDR R3, =char_78
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    MOV R5, #500
+    BL DELAY_MS
     ADD R0, R0, #20
-	MOV R1, #152
+	MOV R1, #144
     LDR R3, =char_71
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    POP {R0-R3, LR}
+    MOV R5, #500
+    BL DELAY_MS
+    MOV R5, #1000
+    BL DELAY_MS
+    ; Show game mode select
+    ; Single Player
+    MOV R0, #34 ;S
+    MOV R1, #160
+    LDR R3,=char_83
+    BL DRAW_IMAGE
+    MOV R0, #50 ;I
+    MOV R1, #160
+    LDR R3,=char_73
+    BL DRAW_IMAGE
+    MOV R0, #66 ;N
+    MOV R1, #160
+    LDR R3,=char_78
+    BL DRAW_IMAGE
+    MOV R0, #82 ;G
+    MOV R1, #160
+    LDR R3,=char_71
+    BL DRAW_IMAGE
+    MOV R0, #98 ;L
+    MOV R1, #160
+    LDR R3,=char_76
+    BL DRAW_IMAGE
+    MOV R0, #114 ;E
+    MOV R1, #160
+    LDR R3,=char_69
+    BL DRAW_IMAGE
+    MOV R0, #130 ;P
+    MOV R1, #160
+    LDR R3,=char_80
+    BL DRAW_IMAGE
+    MOV R0, #146 ;L
+    MOV R1, #160
+    LDR R3,=char_76
+    BL DRAW_IMAGE
+    MOV R0, #162 ;A
+    MOV R1, #160
+    LDR R3,=char_65
+    BL DRAW_IMAGE
+    MOV R0, #178 ;Y
+    MOV R1, #160
+    LDR R3,=char_89
+    BL DRAW_IMAGE
+    MOV R0, #194 ;E
+    MOV R1, #160
+    LDR R3,=char_69
+    BL DRAW_IMAGE
+    MOV R0, #208 ;R
+    MOV R1, #160
+    LDR R3,=char_82
+    BL DRAW_IMAGE
+ ; MULTIPLAYER
+    MOV R0, #256 ;M
+    MOV R1, #160
+    LDR R3,=char_77
+    BL DRAW_IMAGE
+    MOV R0, #272 ;U
+    MOV R1, #160
+    LDR R3,=char_85
+    BL DRAW_IMAGE
+    MOV R0, #288 ;L
+    MOV R1, #160
+    LDR R3,=char_76
+    BL DRAW_IMAGE
+    MOV R0, #304 ;T
+    MOV R1, #160
+    LDR R3,=char_84
+    BL DRAW_IMAGE
+    MOV R0, #320 ;I
+    MOV R1, #160
+    LDR R3,=char_73
+    BL DRAW_IMAGE
+    MOV R0, #336 ;P
+    MOV R1, #160
+    LDR R3,=char_80
+    BL DRAW_IMAGE
+    MOV R0, #352 ;L
+    MOV R1, #160
+    LDR R3,=char_76
+    BL DRAW_IMAGE
+    MOV R0, #368 ;A
+    MOV R1, #160
+    LDR R3,=char_65
+    BL DRAW_IMAGE
+    MOV R0, #384 ;Y
+    MOV R1, #160
+    LDR R3,=char_89
+    BL DRAW_IMAGE
+    MOV R0, #400 ;E
+    MOV R1, #160
+    LDR R3,=char_69
+    BL DRAW_IMAGE
+    MOV R0, #416 ;R
+    MOV R1, #160
+    LDR R3,=char_82
+    BL DRAW_IMAGE
+    B GAME1_FUNCTION_END
+	LTORG
+GAME1_RUNNING
+; Update Score
+    MOV R0, #216
+    MOV R1, #10
+    MOV R3, #56
+    MOV R4, #26
+    MOV R5, #0x0000
+    BL DRAW_RECT ; Clear the score area
+    MOV R0, #220
+    MOV R1, #15
+    LDR R3, =PONG_score1
+    LDR R4, [R3]
+    CMP R4, #0
+    BL SCORE_ZERO
+    CMP R4, #1
+    BL SCORE_ONE
+    CMP R4, #2
+    BL SCORE_TWO
+    CMP R4, #3
+    BL SCORE_THREE
+    CMP R4, #4
+    BL SCORE_FOUR
+    CMP R4, #5
+    BL SCORE_FIVE
+    CMP R4, #6
+    BL SCORE_SIX
+    CMP R4, #7
+    BL SCORE_SEVEN
+    CMP R4, #8
+    BL SCORE_EIGHT
+    CMP R4, #9
+    BL SCORE_NINE
+    BL DRAW_IMAGE ; Draw the score image
+    MOV R0, #244
+    MOV R1, #15
+    LDR R3, =PONG_score2
+    LDR R4, [R3]
+    CMP R4, #0
+    BL SCORE_ZERO
+    CMP R4, #1
+    BL SCORE_ONE
+    CMP R4, #2
+    BL SCORE_TWO
+    CMP R4, #3
+    BL SCORE_THREE
+    CMP R4, #4
+    BL SCORE_FOUR
+    CMP R4, #5
+    BL SCORE_FIVE
+    CMP R4, #6
+    BL SCORE_SIX
+    CMP R4, #7
+    BL SCORE_SEVEN
+    CMP R4, #8
+    BL SCORE_EIGHT
+    CMP R4, #9
+    BL SCORE_NINE
+    BL DRAW_IMAGE
+    B END_UPDATE_SCORE
+SCORE_ZERO
+    PUSH {LR}
+    LDR R3, =char_48 ; 0
+    POP {LR}
+    BX LR
+SCORE_ONE
+    PUSH {LR}
+    LDR R3, =char_49 ; 1
+    POP {LR}
+    BX LR
+SCORE_TWO
+    PUSH {LR}
+    LDR R3, =char_50 ; 2
+    POP {LR}
+    BX LR
+SCORE_THREE
+    PUSH {LR}
+    LDR R3, =char_51 ; 3
+    POP {LR}
+    BX LR
+SCORE_FOUR
+    PUSH {LR}
+    LDR R3, =char_52 ; 4
+    POP {LR}
+    BX LR
+SCORE_FIVE
+    PUSH {LR}
+    LDR R3, =char_53 ; 5
+    POP {LR}
+    BX LR
+SCORE_SIX
+    PUSH {LR}
+    LDR R3, =char_54 ; 6
+    POP {LR}
+    BX LR
+SCORE_SEVEN
+    PUSH {LR}
+    LDR R3, =char_55 ; 7
+    POP {LR}
+    BX LR
+SCORE_EIGHT
+    PUSH {LR}
+    LDR R3, =char_56 ; 8
+    POP {LR}
+    BX LR
+SCORE_NINE
+    PUSH {LR}
+    LDR R3, =char_57 ; 9
+    POP {LR}
+    BX LR
+
+END_UPDATE_SCORE
+; =================Clear Ball
+    LDR R2, =PONG_ball_pos
+    LDR R2, [R2]
+    LSR R0, R2, #16
+    MOV R3, #0xFFFF
+    AND R1, R2, R3
+    LDR R2, =PONG_ball_hdim
+    SUB R0, R0, R2
+    SUB R1, R1, R2
+    MOV R3, R2, LSL #1
+    MOV R4, R3
+    LDR R5, =PONG_bg_color
+    BL DRAW_RECT
+
+; =================Draw Ball
+    LDR R2, =PONG_ball_pos
+    LDR R2, [R2]
+    LSR R0, R2, #16
+    MOV R3, #0xFFFF
+    AND R1, R2, R3
+    LDR R2, =PONG_ball_hdim
+    SUB R0, R0, R2
+    SUB R1, R1, R2
+    MOV R3, R2, LSL #1
+    MOV R4, R3
+    MOV R5, #0xFFFF
+    BL DRAW_RECT
+
+; Poll button stats
+    LDR R0, =GPIOA_BASE
+    LDR R1, =GPIOx_IDR_OFFSET
+    ADD R0, R0, R1
+    LDR R2, [R0]
+    MOV R7, R2
+    MVN R3, #(1 << 0) ; right arrow
+    MVN R4, #(1 << 3) ; down arrow
+    AND R7, R7, R3
+    CMP R2, R7
+    BEQ RIGHT_BAT_UP
+    MOV R7, R2
+    AND R7, R7, R4
+    CMP R2, R7
+    BEQ RIGHT_BAT_DOWN
+    B LEFT_BAT_CHECKS
+RIGHT_BAT_UP
+    LDR R0, =PONG_rbat
+    MOVW R1, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
+    MOVT R1, #:upper16:PONG_rbat_x  ; Load the upper 16 bits of the address
+    BL BAT_UP
+    MOV R7, R2
+    AND R2, R2, R4
+    CMP R2, R7
+    BNE LEFT_BAT_CHECKS
+
+RIGHT_BAT_DOWN
+    LDR R0, =PONG_rbat
+    MOVW R1, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
+    MOVT R1, #:upper16:PONG_rbat_x  ; Load the upper 16 bits of the address
+    BL BAT_DOWN
+LEFT_BAT_CHECKS
+    MVN R3, #(1 << 2) ; up arrow
+    MVN R4, #(1 << 1) ; left arrow
+    MOV R7, R2
+    AND R7, R7, R3
+    CMP R2, R7
+    BEQ LEFT_BAT_UP
+    MOV R7, R2
+    AND R7, R7, R4
+    CMP R2, R7
+    BEQ LEFT_BAT_DOWN
+    B LOOP_FUNCTION
+LEFT_BAT_UP
+    LDR R0, =PONG_lbat
+    LDR R1, =PONG_lbat_x
+    BL BAT_UP
+    MOV R7, R2
+    AND R7, R7, R4
+    CMP R2, R7
+    BNE LOOP_FUNCTION
+LEFT_BAT_DOWN
+    LDR R0, =PONG_lbat
+    LDR R1, =PONG_lbat_x
+    BL BAT_DOWN
+LOOP_FUNCTION
+    BL PONG_LOOP
+GAME1_FUNCTION_END
+    POP {R0-R11, LR}
 	BX LR
 	ENDFUNC
+
+; ######### BAT UP FUNCTION
+; General function for both bats
+; R0 has the handled bat (right or left)
+; R1 has the bat x
+BAT_UP FUNCTION
+    PUSH {R1-R5, LR}
+    LDRH R2, [R0]
+    CMP R2, #0x32
+    BEQ BAT_UP_END
+    ; Remove one pixel line from the end of the bat
+    PUSH {R0, R1}
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    ADD R1, R2, R3
+    SUB R1, R1, #1 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #1
+    LDR R5, =PONG_bg_color
+    BL DRAW_RECT
+    POP {R0, R1}
+    LDRH R2, [R0]
+    SUB R2, R2, #1 ; Move the bat up by one pixel
+    STRH R2, [R0] ; Update the bat position
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    SUB R1, R2, R3 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #1
+    LDR R5, =0xFFFF
+    BL DRAW_RECT ; Draw a new pixel at the top of the bat
+BAT_UP_END
+    POP {R1-R5, LR}
+    BX LR
+    ENDFUNC
+; ######### BAT DOWN FUNCTION
+; General function for both bats
+; R0 has the handled bat (right or left)
+; R1 has the handled bat x
+BAT_DOWN FUNCTION
+    PUSH {R1-R5, LR}
+    LDRH R2, [R0]
+    CMP R2, #0x10E
+    BEQ BAT_DOWN_END
+    ; Remove one pixel line from the start of the bat
+    PUSH {R0, R1}
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    SUB R1, R2, R3 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #1
+    LDR R5, =PONG_bg_color
+    BL DRAW_RECT
+    POP {R0, R1}
+    LDRH R2, [R0]
+    ADD R2, R2, #1 ; Move the bat up by one pixel
+    STRH R2, [R0] ; Update the bat position
+    LDR R3, =PONG_pad_hwidth
+    SUB R0, R1, R3 ; Start X
+    LDR R3, =PONG_pad_hheight
+    ADD R1, R2, R3
+    SUB R1, R1, #1 ; Start Y
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    MOV R4, #1
+    LDR R5, =0xFFFF
+    BL DRAW_RECT ; Draw a new pixel at the top of the bat
+BAT_DOWN_END
+    POP {R1-R5, LR}
+    BX LR
+    ENDFUNC
 	LTORG
+DRAW_FULL_BATS FUNCTION
+    PUSH {R0-R5, LR}
+    MOVW R0, #:lower16:PONG_rbat_x  ; Load the lower 16 bits of the address
+    MOVT R0, #:upper16:PONG_rbat_x  ; Load the upper 16 bits of the address
+    LDR R1, =PONG_pad_hwidth
+    SUB R0, R0, R1
+    LDR R1, =PONG_rbat
+    LDRH R1, [R1]
+    LDR R2, =PONG_pad_hheight
+    SUB R1, R1, R2
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    LDR R4, =PONG_pad_hheight
+    LSL R4, #1
+    LDR R5, =0xFFFF
+    BL DRAW_RECT ; Draw right bat
+    LDR R0, =PONG_lbat_x
+    LDR R1, =PONG_pad_hwidth
+    SUB R0, R0, R1
+    LDR R1, =PONG_lbat
+    LDRH R1, [R1]
+    LDR R2, =PONG_pad_hheight
+    SUB R1, R1, R2
+    LDR R3, =PONG_pad_hwidth
+    LSL R3, #1
+    LDR R4, =PONG_pad_hheight
+    LSL R4, #1
+    LDR R5, =0xFFFF
+    BL DRAW_RECT ; Draw left bat
+    POP {R0-R5, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -678,13 +1120,15 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     ldr r3, =btn1_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 50 ms
-    bls skip_toggle              ; If <= 50 ms, skip the toggle
+    cmp r0, #250                  ; Compare difference with 250 ms
+    bls skip_toggle              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
     CMP R11, #0
     BEQ MENU_INT0_HANDLER
+    CMP R11, #1
+    BEQ GAME1_INT0_HANDLER
 	B skip_toggle
 
 ; ##########Start Main Menu Handler##########
@@ -730,6 +1174,22 @@ GO_FIRST_ROW
     BL DRAW_MENU ; Call DRAW_MENU to update the screen
     B skip_toggle
 ; ##########END Main Menu Handler##########
+; ##########Start Game1 Handler##########
+GAME1_INT0_HANDLER
+    LDR R0, =PONG_state
+    LDRB R1, [R0]
+    CMP R1, #1
+    BNE skip_toggle
+    LDR R2, =PONG_GAME_MODE
+    MOV R3, #1 ; Multiplayer mode
+    STR R3, [R2]
+    MOV R1, #2
+    STR R1, [R0] ; Game on
+    LDR R0, =PONG_bg_color
+    BL FILL_SCREEN
+    BL DRAW_FULL_BATS
+    B skip_toggle
+; ##########END Game1 Handler##########
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -749,13 +1209,15 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     ldr r3, =btn2_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 50 ms
+    cmp r0, #250                  ; Compare difference with 250 ms
     bls skip_toggle1              ; If <= 50 ms, skip the toggle
 	ldr r4, =btn2_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
     CMP R11, #0x0
     BEQ MENU_INT1_HANDLER
+    CMP R11, #1
+    BEQ GAME1_INT1_HANDLER
 	B skip_toggle1
     ; ##########Start Main Menu Handler##########
 MENU_INT1_HANDLER
@@ -808,6 +1270,20 @@ GO_END_FIRST_ROW
     BL DRAW_MENU
     B skip_toggle1
 ; ##########END Main Menu Handler##########
+GAME1_INT1_HANDLER
+    LDR R0, =PONG_state
+    LDR R1, [R0]
+    CMP R1, #1
+    BNE skip_toggle
+    LDR R2, =PONG_GAME_MODE
+    MOV R3, #0 ; Singleplayer mode
+    STR R3, [R2]
+    MOV R1, #2
+    STR R1, [R0] ; Game on
+    LDR R0, =PONG_bg_color
+    BL FILL_SCREEN
+    BL DRAW_FULL_BATS
+    B skip_toggle
 skip_toggle1
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -827,13 +1303,15 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     ldr r3, =btn3_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 50 ms
+    cmp r0, #250                  ; Compare difference with 250 ms
     bls skip_toggle2             ; If <= 50 ms, skip the toggle
 	ldr r4, =btn3_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
     CMP R11, #0
     BEQ MENU_INT2_HANDLER
+    CMP R11, #1
+    BEQ GAME1_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -842,15 +1320,18 @@ MENU_INT2_HANDLER
     BL RESET_MENU ; Reset the menu before switching games
 	MOV R0, #0x0000
 	BL FILL_SCREEN
-	BL DRAW_GAME1
+	;BL DRAW_GAME1
     B skip_toggle2
     ;###########End Main Menu Handler###########
+GAME1_INT2_HANDLER
+
+    B skip_toggle
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
 
-EXTI3_IRQHandler PROC
+EXTI3_IRQHandler PROC ; Down button handler
 
 	push {r0-r5, lr}         ; Save registers to the stack
     ldr r0, =EXTI_BASE      ; EXTI base address
@@ -864,7 +1345,7 @@ EXTI3_IRQHandler PROC
     ldr r3, =btn4_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 50 ms
+    cmp r0, #250                  ; Compare difference with 250 ms
     bls skip_toggle3              ; If <= 50 ms, skip the toggle
 	ldr r4, =btn4_last_handled_time
 	str r2, [r4]
