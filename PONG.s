@@ -1,12 +1,17 @@
 		; Constants['']
         AREA PONGCONST, DATA, READONLY
         EXPORT PONG_bg_color
+        EXPORT PONG_fg_color
+        EXPORT PONG_txt_color
         EXPORT PONG_lbat_x
         EXPORT PONG_rbat_x
         EXPORT PONG_ball_hdim
         EXPORT PONG_pad_hheight
         EXPORT PONG_pad_hwidth
-PONG_bg_color	EQU 0x6e3f
+;PONG_bg_color	EQU 0x6e3f
+PONG_bg_color	EQU 0x20AF
+PONG_fg_color	EQU 0xFFFF
+PONG_txt_color	EQU 0x8D14
 Width       EQU 480
 Height      EQU 320
 PONG_lbat_x  	EQU 0x0014
@@ -40,13 +45,11 @@ ball_vel	DCW 0x0100		;(Vx)(Vx)(Vy)(Vy) (This is pixel per frame, a more accurate
 PONG_state        DCB 0x00		; 0 = game_starting, 1 = game mode select, 2 =game_on, 3 = right_won, 4 = left_won
 
 PONG_GAME_MODE        DCB 0x00		; 0 = Single player, 1= Multiplayer
-
         AREA PONGCODE, CODE, READONLY
 		EXPORT PONG_RESET
 		EXPORT PONG_LOOP
 		EXPORT PONG_BAT_UP
         EXPORT PONG_BAT_DOWN
-
 PONG_RESET FUNCTION
 		; reset all data here
 		; Store into PONG_ball_pos (32-bit)
@@ -124,7 +127,6 @@ PONG_FOLLOW
 
     ; Otherwise, do nothing and jump to end_follow
     B       end_follow
-
 move_down
     ; Move the left bat down
     ; Load the address of PONG_lbat into r0
@@ -264,7 +266,7 @@ collision_detected_l
 	LDR     R0, =ball_vel     	; R0 points to ball_vel
 	LDRSB   R8, [R0, #1]      	; Load ball_vel (VxVx)
     TST   R8, #0x80000000
-    BE   bounce_y_comp
+    BEQ   bounce_y_comp
 	RSBS	R8, R8, #0			; Change X direction
 	STRB   	R8, [R0, #1]      	; Store ball_vel (VxVx)
 	

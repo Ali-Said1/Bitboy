@@ -1,24 +1,26 @@
-def create_font_bitmap(characters, width=16, height=16, on_color=0xFFFF, off_color=0x0000):
+#!/usr/bin/env python3
+"""
+font_bitmap_generator.py
+
+Generate ARM assembly bitmap file 'fonts.s' for a set of characters,
+each defined as a 16×16 monochrome mask.
+"""
+
+def create_font_bitmap(characters, width=16, height=16):
     """
-    Generate ARM assembly bitmap representations for a set of characters.
-    
-    Args:
-        characters (str): The characters to convert to bitmaps
-        width (int): Width of each character in pixels
-        height (int): Height of each character in pixels
-        on_color (int): 16-bit RGB565 color value for "on" pixels (default is white: 0xFFFF)
-        off_color (int): 16-bit RGB565 color value for "off" pixels (default is black: 0x0000)
-    
-    Returns:
-        str: ARM assembly code defining the bitmaps
+    Generate ARM assembly bitmask definitions for 'characters' and write to 'fonts.s'.
+
+    Each character is emitted as:
+        char_<ASCII_CODE>
+            DCD     <width>                ; width
+            DCD     <height>               ; height
+            DCW     0xXXXX                ; row  0
+            ...
+            DCW     0xYYYY                ; row 15
     """
-    result = []
-    
-    # Simple bitmap patterns for ASCII characters (16x16)
-    # Each character is represented as a list of rows, where each row is a binary pattern
+    # Predefined 16×16 binary patterns for A–Z and 0–9
     patterns = {
         'A': [
-            "0000000000000000",
             "0000000000000000",
             "0000001100000000",
             "0000011110000000",
@@ -32,6 +34,7 @@ def create_font_bitmap(characters, width=16, height=16, on_color=0xFFFF, off_col
             "1100000000011100",
             "1100000000011100",
             "1100000000011100",
+            "0000000000000000",
             "0000000000000000",
             "0000000000000000"
         ],
@@ -639,9 +642,9 @@ def create_font_bitmap(characters, width=16, height=16, on_color=0xFFFF, off_col
             "0001111110000000",
             "0011000011000000",
             "0110000001100000",
-            "1100000000110000",
-            "1100000000110000",
-            "0111111111100000",
+            "0110000001100000",
+            "0011000011000000",
+            "0001111110000000",
             "0000000000000000",
             "0000000000000000",
             "0000000000000000",
@@ -667,140 +670,34 @@ def create_font_bitmap(characters, width=16, height=16, on_color=0xFFFF, off_col
         ],
         # Add more characters as needed
     }
-    
-    # Add basic patterns for characters that don't have predefined patterns
+    lines = []
     for char in characters:
-        if char not in patterns:
-            # Create a simple representation for undefined characters
-            if 'a' <= char <= 'z' or 'A' <= char <= 'Z' or '0' <= char <= '9':
-                patterns[char] = [
-                    "0000000000000000",
-                    "0000111111000000",
-                    "0011000001100000",
-                    "0110000000110000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "1100000000011000",
-                    "0110000000110000",
-                    "0011000001100000",
-                    "0000111111000000",
-                    "0000000000000000",
-                    "0000000000000000"
-                ]
-            else:
-                patterns[char] = ["0000000000000000"] * height
-    
-    for char in characters:
-        ascii_value = ord(char)
-        pattern = patterns.get(char, ["0000000000000000"] * height)
-        
-        # Ensure pattern has the correct height
-        if len(pattern) < height:
-            pattern = pattern + ["0000000000000000"] * (height - len(pattern))
-        elif len(pattern) > height:
-            pattern = pattern[:height]
-            
-        # Create ARM assembly code for this character
-        result.append(f"char_{ascii_value}")
-        # Add DCD directives for width and height
-        result.append(f"    DCD {width}")
-        result.append(f"    DCD {height}")
-        
-        for row_idx, row in enumerate(pattern):
-            # Ensure row has the correct width
-            if len(row) < width:
-                row = row + "0" * (width - len(row))
-            elif len(row) > width:
-                row = row[:width]
-            
-            # Split the 16-bit row into two 8-bit groups for better visualization
-            row_description = row_pattern_description(row)
-            result.append(f"; Row {row_idx} {row} -> {row_description}")
-            
-            # Convert the binary pattern to DCW statements
-            pixel_values = []
-            for bit in row:
-                color = on_color if bit == '1' else off_color
-                pixel_values.append(f"0x{color:04X}")
-            
-            # Format as DCW statements (in groups of 8 for readability)
-            chunks = [pixel_values[i:i+8] for i in range(0, len(pixel_values), 8)]
-            for chunk in chunks:
-                dcw_line = f"    DCW {', '.join(chunk)}"
-                result.append(dcw_line)
-        
-        result.append("")  # Add a blank line between characters
-    
-    return "\n".join(result)
+        ascii_val = ord(char)
+        patt = patterns.get(char, ["0" * width] * height)
+        # enforce exactly 'height' rows
+        patt = (patt + ["0" * width] * height)[:height]
 
-def row_pattern_description(binary_row):
-    """Generate a description of which pixels are on in a row"""
-    if "1" not in binary_row:
-        return "all pixels off"
-    
-    on_pixels = [i for i, bit in enumerate(binary_row) if bit == "1"]
-    
-    if len(on_pixels) == len(binary_row):
-        return "all pixels on"
-        
-    if len(on_pixels) > len(binary_row) // 2:
-        # If more than half the pixels are on, describe the off pixels instead
-        off_pixels = [i for i, bit in enumerate(binary_row) if bit == "0"]
-        return f"pixels {format_pixel_groups(off_pixels)} off"
-    
-    return f"pixels {format_pixel_groups(on_pixels)} on"
+        lines.append(f"char_{ascii_val}")
+        lines.append(f"    DCD     {width}")
+        lines.append(f"    DCD     {height}")
 
-def format_pixel_groups(pixel_indices):
-    """Format a list of pixel indices into a readable description with ranges"""
-    if not pixel_indices:
-        return ""
-        
-    # Group consecutive pixel positions
-    groups = []
-    current_group = [pixel_indices[0]]
-    
-    for pos in pixel_indices[1:]:
-        if pos == current_group[-1] + 1:
-            current_group.append(pos)
-        else:
-            groups.append(current_group)
-            current_group = [pos]
-    
-    groups.append(current_group)
-    
-    # Create description parts
-    parts = []
-    for group in groups:
-        if len(group) == 1:
-            parts.append(f"{group[0]}")
-        elif len(group) == 2:
-            parts.append(f"{group[0]},{group[1]}")
-        else:
-            parts.append(f"{group[0]}-{group[-1]}")
-    
-    # Join the parts with appropriate connectors
-    if len(parts) == 1:
-        return parts[0]
-    elif len(parts) == 2:
-        return f"{parts[0]} and {parts[1]}"
-    else:
-        return ", ".join(parts[:-1]) + f", and {parts[-1]}"
+        for row_idx, row in enumerate(patt):
+            # enforce exactly 'width' bits
+            row = (row + "0" * width)[:width]
+            mask = int(row, 2)
+            lines.append(f"    DCW     0x{mask:04X}")
+
+        lines.append("")  # blank line
+
+    # write to fonts.s
+    with open("fonts1.s", "w") as f:
+        f.write("\n".join(lines))
 
 def main():
-    # Example usage
-    characters_to_convert = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    bitmap_code = create_font_bitmap(characters_to_convert)
-    
-    # Print the result
-    print(bitmap_code)
-    
-    # Optionally save to a file
-    with open("font_bitmaps.s", "w") as f:
-        f.write(bitmap_code)
-    
+    # characters to generate (modify as needed)
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    create_font_bitmap(chars)
+    print("fonts1.s generated successfully.")
+
 if __name__ == "__main__":
     main()

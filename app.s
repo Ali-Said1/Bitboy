@@ -72,13 +72,15 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 	EXPORT EXTI3_IRQHandler
 	EXPORT SysTick_Handler
     ;==============================PONG IMPORTS=================================
+    IMPORT PONG_LOGO
     IMPORT PONG
     IMPORT PONG_ball_pos
     IMPORT PONG_lbat
-    IMPORT PONG_rbat
     IMPORT PONG_score1
     IMPORT PONG_score2
     IMPORT PONG_bg_color
+    IMPORT PONG_fg_color
+    IMPORT PONG_txt_color
     IMPORT PONG_state
     IMPORT PONG_RESET
 	IMPORT PONG_LOOP
@@ -90,6 +92,7 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 	IMPORT PONG_GAME_MODE
     IMPORT PONG_BAT_DOWN
     IMPORT PONG_BAT_UP
+    IMPORT PONG_rbat
 	AREA MYCODE, CODE, READONLY
 
 	ENTRY
@@ -105,7 +108,7 @@ __main FUNCTION
 	BL DRAW_MENU
 	MOV R11, #0
 MAIN_LOOP
-    CMP R11, #0 ; Check if R11 is 0 (Main Menu)
+    CMP		 R11, #0 ; Check if R11 is 0 (Main Menu)
     BEQ END_MAINLOOP
 
     CMP R11, #1 ; Check if R11 is 1
@@ -117,7 +120,7 @@ DRAW_GAME1_LBL
 END_MAINLOOP
 	B MAIN_LOOP
 
-_init
+_init 
     push {r0-r12, lr}  ; Save registers
     ;#################################Select system Clock Source#######################################
     ; Enable HSI clock
@@ -272,15 +275,6 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
 	pop {r0-r12, lr}
 	bx lr
 	LTORG
-;####################################################PONG Start#######################################################
-pong
-    push {r0-r12, lr}
-    
-    pop {r0-r12, lr}
-    bx lr
-
-;#####################################################PONG End#######################################################
-
 	ENDFUNC
 	
 ; #######################################################START MISC FUNCTIONS#######################################################
@@ -299,12 +293,111 @@ DELAY_MS_LOOP
     LTORG
 ;#######################################################END MISC FUNCTIONS#######################################################
 ;#######################################################START Drawing Functions#####################################################
-; DRAW_PIXEL FUNCTION
-;     PUSH {R0-R4, LR}
+;========================================================================
+        ; DRAW_CHAR (ARM Assembly)
+        ; Draws a monochrome 16×16 glyph by expanding a 1-bit bitmap into
+        ; full-color pixels.  Call with:
+        ;   R0 = start X coordinate
+        ;   R1 = start Y coordinate
+        ;   R3 = address of glyph data (width, height, then row masks)
+        ;   R4 = foreground color (16-bit RGB565)
+        ;   R5 = background color (16-bit RGB565)
+        ;
+        ; Requires implemented subroutines:
+        ;   TFT_COMMAND_WRITE  (R2 = command)
+        ;   TFT_DATA_WRITE     (R2 = data byte)
+        ;
+        ; Registers used / preserved:
+        ;   R0-R5 = inputs (R4/R5 preserved)
+        ;   R6 = width (preserved)
+        ;   R7 = height (preserved)
+        ;   R8 = row mask (preserved)
+        ;   R9 = bit mask (preserved)
+        ;   R10 = column counter (preserved)
+        ;   R11 = row counter (preserved)
+        ;   LR = return address (preserved)
+        ;========================================================================
 
-;     POP {R0-R4, LR}
-    ; BX LR
-;     ENDFUNC
+DRAW_CHAR FUNCTION
+        PUSH    {R6,R7,R8,R9,R10,R11,LR}
+
+        ;-- load glyph dimensions ---------------------------------------------
+        LDR     R6, [R3], #4      ; R6 = width
+        LDR     R7, [R3], #4      ; R7 = height
+
+        ;-- set column address (0x2A) ----------------------------------------
+        MOV     R2, #0x2A
+        BL      TFT_COMMAND_WRITE
+
+        MOV     R2, R0, LSR #8    ; start X high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R0, #0xFF     ; start X low byte
+        BL      TFT_DATA_WRITE
+
+        ADD     R8, R0, R6        ; end X = startX + width
+        SUB     R8, R8, #1        ; end X -= 1
+        MOV     R2, R8, LSR #8    ; end X high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R8, #0xFF     ; end X low byte
+        BL      TFT_DATA_WRITE
+
+        ;-- set page (row) address (0x2B) -----------------------------------
+        MOV     R2, #0x2B
+        BL      TFT_COMMAND_WRITE
+
+        MOV     R2, R1, LSR #8    ; start Y high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R1, #0xFF     ; start Y low byte
+        BL      TFT_DATA_WRITE
+
+        ADD     R8, R1, R7        ; end Y = startY + height
+        SUB     R8, R8, #1        ; end Y -= 1
+        MOV     R2, R8, LSR #8    ; end Y high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R8, #0xFF     ; end Y low byte
+        BL      TFT_DATA_WRITE
+
+        ;-- memory write (0x2C) ----------------------------------------------
+        MOV     R2, #0x2C
+        BL      TFT_COMMAND_WRITE
+
+        ;-- draw pixels by expanding each bit of each row --------------------
+        MOV     R11, R7           ; row count
+
+ROW_LOOP
+        LDRH    R8, [R3], #2      ; fetch 16-bit row mask
+        MOV     R10, R6           ; column count
+        MOV     R9, #0x8000       ; bit mask = MSB
+
+PIXEL_LOOP
+        TST     R8, R9
+        BEQ     DRAW_BACKGROUND
+
+        ;-- draw foreground pixel -------------------------------------------
+        MOV     R2, R4, LSR #8    ; FG high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R4, #0xFF     ; FG low byte
+        BL      TFT_DATA_WRITE
+        B       PIXEL_NEXT
+
+DRAW_BACKGROUND
+        ;-- draw background pixel -------------------------------------------
+        MOV     R2, R5, LSR #8    ; BG high byte
+        BL      TFT_DATA_WRITE
+        AND     R2, R5, #0xFF     ; BG low byte
+        BL      TFT_DATA_WRITE
+
+PIXEL_NEXT
+        LSR     R9, R9, #1        ; shift mask
+        SUBS    R10, R10, #1      ; decrement column
+        BNE     PIXEL_LOOP
+
+        SUBS    R11, R11, #1      ; decrement row
+        BNE     ROW_LOOP
+
+        POP     {R6,R7,R8,R9,R10,R11,LR}
+        BX      LR
+        ENDFUNC
 ;@@@@@@@@@@@@@@@DRAW RECT
 ; All landscape
 ; R0 Has Start X
@@ -454,6 +547,148 @@ TFT_Loop
     POP {R1-R12, LR}
     BX LR
     ENDFUNC
+; DRAW_DIAGONAL_LINE Function for ILI9486 TFT Display
+; 
+; Parameters:
+; R0 = Start X coordinate
+; R1 = Start Y coordinate
+; R2 = End X coordinate
+; R3 = End Y coordinate
+; R4 = Line thickness (in pixels)
+; R5 = Color (16-bit RGB565 format)
+;
+; Uses the Bresenham line algorithm with thickness support
+
+DRAW_DIAGONAL_LINE FUNCTION
+    PUSH {R4-R11, LR}        ; Save registers
+    
+    ; Save parameters to working registers
+    MOV R6, R0               ; R6 = x1 (start X)
+    MOV R7, R1               ; R7 = y1 (start Y)
+    MOV R8, R2               ; R8 = x2 (end X)
+    MOV R9, R3               ; R9 = y2 (end Y)
+    MOV R10, R4              ; R10 = thickness
+    MOV R11, R5              ; R11 = color
+    
+    ; Calculate delta values
+    SUB R0, R8, R6           ; dx = x2 - x1
+    BL ABS                   ; Get absolute value
+    MOV R4, R0               ; R4 = abs(dx)
+    
+    SUB R0, R9, R7           ; dy = y2 - y1
+    BL ABS                   ; Get absolute value
+    MOV R5, R0               ; R5 = abs(dy)
+    
+    ; Determine which coordinate changes faster
+    CMP R4, R5               ; Compare dx and dy
+    ITE GE                   ; If-Then-Else (GE: Greater than or Equal)
+    MOVGE R0, #1             ; If dx >= dy, step x by 1
+    MOVLT R0, #0             ; If dx < dy, step y by 1
+    
+    ; Determine direction
+    CMP R6, R8               ; Compare x1 and x2
+    ITE LT                   ; If-Then-Else (LT: Less Than)
+    MOVLT R1, #1             ; If x1 < x2, increment x
+    MOVGE R1, #-1            ; If x1 >= x2, decrement x
+    
+    CMP R7, R9               ; Compare y1 and y2
+    ITE LT                   ; If-Then-Else (LT: Less Than)
+    MOVLT R2, #1             ; If y1 < y2, increment y
+    MOVGE R2, #-1            ; If y1 >= y2, decrement y
+    
+    ; Main drawing loop
+    CMP R4, R5               ; Compare dx and dy again
+    BGE DRAW_X_DOMINANT      ; If dx >= dy, x changes faster
+    B DRAW_Y_DOMINANT        ; If dx < dy, y changes faster
+    
+DRAW_X_DOMINANT
+    MOV R0, R4               ; err = dx (using R0 as error accumulator)
+    LSR R0, R0, #1           ; err = dx/2
+    
+X_DOMINANT_LOOP
+    ; Draw a thick point at the current position
+    BL DRAW_THICK_POINT
+    
+    ; Exit condition
+    CMP R6, R8               ; Compare current x to end x
+    BEQ X_DOMINANT_EXIT      ; If equal, we're done
+    
+    ; Update error and position
+    SUB R0, R0, R5           ; err -= dy
+    CMP R0, #0               ; Check if error < 0
+    ITT LT                   ; If-Then-Then (LT: Less Than)
+    ADDLT R7, R7, R2         ; If error < 0, update y: y += sy
+    ADDLT R0, R0, R4         ; If error < 0, update error: err += dx
+    
+    ADD R6, R6, R1           ; x += sx (always move in x direction)
+    B X_DOMINANT_LOOP        ; Continue loop
+    
+X_DOMINANT_EXIT
+    B DRAW_LINE_EXIT
+    
+DRAW_Y_DOMINANT
+    MOV R0, R5               ; err = dy (using R0 as error accumulator)
+    LSR R0, R0, #1           ; err = dy/2
+    
+Y_DOMINANT_LOOP
+    ; Draw a thick point at the current position
+    BL DRAW_THICK_POINT
+    
+    ; Exit condition
+    CMP R7, R9               ; Compare current y to end y
+    BEQ Y_DOMINANT_EXIT      ; If equal, we're done
+    
+    ; Update error and position
+    SUB R0, R0, R4           ; err -= dx
+    CMP R0, #0               ; Check if error < 0
+    ITT LT                   ; If-Then-Then (LT: Less Than)
+    ADDLT R6, R6, R1         ; If error < 0, update x: x += sx
+    ADDLT R0, R0, R5         ; If error < 0, update error: err += dy
+    
+    ADD R7, R7, R2           ; y += sy (always move in y direction)
+    B Y_DOMINANT_LOOP        ; Continue loop
+    
+Y_DOMINANT_EXIT
+    B DRAW_LINE_EXIT
+    
+DRAW_LINE_EXIT
+    POP {R4-R11, LR}         ; Restore registers
+    BX LR                    ; Return
+    ENDFUNC
+    
+; Helper function to draw a thick point (square of pixels)
+DRAW_THICK_POINT FUNCTION
+    PUSH {R0-R5, LR}         ; Save registers
+    
+    ; Calculate thickness offset
+    MOV R0, R10              ; R0 = thickness
+    LSR R0, R0, #1           ; R0 = thickness/2
+    
+    ; Calculate the bounds for the thick point
+    SUB R2, R6, R0           ; left = x - thickness/2
+    SUB R3, R7, R0           ; top = y - thickness/2
+    ADD R4, R10, #0          ; width = thickness
+    ADD R5, R10, #0          ; height = thickness
+    
+    ; Call DRAW_RECT with these coordinates
+    MOV R0, R2               ; x = left
+    MOV R1, R3               ; y = top
+    MOV R3, R4               ; width
+    MOV R4, R5               ; height
+    MOV R5, R11              ; color
+    BL DRAW_RECT             ; Call the rectangle drawing function
+    
+    POP {R0-R5, LR}          ; Restore registers
+    BX LR                    ; Return
+    ENDFUNC
+    
+; Helper function to get absolute value
+ABS FUNCTION
+    CMP R0, #0               ; Compare R0 with 0
+    IT LT                    ; If-Then (LT: Less Than)
+    RSBLT R0, R0, #0         ; If R0 < 0, R0 = -R0
+    BX LR                    ; Return
+    ENDFUNC
 ;#######################################################END Drawing Functions#######################################################
 ;#######################################################START Menu Functions#######################################################
 ;#### Function to reset the menu =>> to be called before switching the current game variable
@@ -484,7 +719,7 @@ DRAW_MENU FUNCTION
     MOV R5, #0x265B
     BL DRAW_RECT
     ;Draw the game logo
-    LDR R3, =gamelogo
+    LDR R3, =PONG_LOGO
     MOV R0, #45
     MOV R1, #60
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
@@ -520,47 +755,336 @@ DRAW_GAME1 FUNCTION
     LDR.W R0, =PONG_state
     LDRB R1, [R0]
     CMP R1, #0
-    BEQ GAME1_START_MENU
+    BEQ.W GAME1_START_MENU
     CMP R1, #1
     BEQ.W GAME1_FUNCTION_END
     CMP R1, #3
     BEQ PONG_P1WIN
     CMP R1, #4
-    BEQ PONG_P2WIN
+    BEQ.W PONG_P2WIN
     B GAME1_RUNNING
 PONG_P1WIN
-    MOV R0, #0x07E0 ; Green color
-    BL FILL_SCREEN ; Fill screen with green color
+    MOV R0, #0x07E0 
+    BL FILL_SCREEN
+    LDR R0, =PONG_GAME_MODE
+    LDRB R0, [R0]
+    CMP R0, #0 ; Check if game mode is single player
+    BEQ PONG_P1WIN_SINGLE_PLAYER ; If single player, branch to single player win
+    LDR R3, =char_80 ;P
+    MOV R0, #136
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_49 ;1
+    MOV R0, #248
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_73 ;I
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_78 ;N
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #328
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    B.W GAME1_FUNCTION_END
+PONG_P1WIN_SINGLE_PLAYER
+    LDR R3, =char_80 ;P
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #232
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #264
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_73 ;I
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_78 ;N
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
     B.W GAME1_FUNCTION_END
 PONG_P2WIN
+    LDR R0, =PONG_GAME_MODE
+    LDRB R0, [R0]
+    CMP R0, #0 ; Check if game mode is single player
+    BEQ PONG_P2WIN_SINGLE_PLAYER ; If single player, branch to single player win
+    MOV R0, #0x07E0
+    BL FILL_SCREEN
+    LDR R3, =char_80 ;P
+    MOV R0, #136
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_50 ;2
+    MOV R0, #248
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_73 ;I
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_78 ;N
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #328
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    B.W GAME1_FUNCTION_END
+PONG_P2WIN_SINGLE_PLAYER
     MOV R0, #0xF800 ; Red color
     BL FILL_SCREEN ; Fill screen with red color
+    LDR R3, =char_80 ;P
+    MOV R0, #136
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #248
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_79 ;O
+    MOV R0, #264
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0xF800
+    BL DRAW_CHAR
     B.W GAME1_FUNCTION_END
+    LTORG
 GAME1_START_MENU
+    PUSH {R0}
+    LDR R0, =PONG_bg_color
+    BL FILL_SCREEN ; Fill screen with background color
+    POP {R0}
     MOV R1, #1
     STRB R1, [R0]
+    MOV R0, #190
+    MOV R1, #40
+    LDR R3, =PONG_LOGO
+    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =char_80
     MOV R0, #200
     MOV R1, #144
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR ; Call DRAW_CHAR to draw the image
     MOV R5, #500
     BL DELAY_MS
     ADD R0, R0, #20
     MOV R1, #144
 	LDR R3, =char_79
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR ; Call DRAW_CHAR to draw the image
     MOV R5, #500
     BL DELAY_MS
     ADD R0, R0, #21
 	MOV R1, #144
     LDR R3, =char_78
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR ; Call DRAW_CHAR to draw the image
     MOV R5, #500
     BL DELAY_MS
     ADD R0, R0, #20
 	MOV R1, #144
     LDR R3, =char_71
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR ; Call DRAW_CHAR to draw the image
     MOV R5, #500
     BL DELAY_MS
     MOV R5, #1000
@@ -570,106 +1094,159 @@ GAME1_START_MENU
     MOV R0, #34 ;S
     MOV R1, #160
     LDR R3,=char_83
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #50 ;I
     MOV R1, #160
     LDR R3,=char_73
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #66 ;N
     MOV R1, #160
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
     LDR R3,=char_78
-    BL DRAW_IMAGE
+    BL DRAW_CHAR
     MOV R0, #82 ;G
     MOV R1, #160
     LDR R3,=char_71
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #98 ;L
     MOV R1, #160
     LDR R3,=char_76
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #114 ;E
     MOV R1, #160
     LDR R3,=char_69
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #130 ;P
     MOV R1, #160
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
     LDR R3,=char_80
-    BL DRAW_IMAGE
+    BL DRAW_CHAR
     MOV R0, #146 ;L
     MOV R1, #160
     LDR R3,=char_76
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #162 ;A
     MOV R1, #160
     LDR R3,=char_65
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #178 ;Y
     MOV R1, #160
     LDR R3,=char_89
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #194 ;E
     MOV R1, #160
     LDR R3,=char_69
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #208 ;R
     MOV R1, #160
     LDR R3,=char_82
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
  ; MULTIPLAYER
     MOV R0, #256 ;M
     MOV R1, #160
     LDR R3,=char_77
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #272 ;U
     MOV R1, #160
     LDR R3,=char_85
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #288 ;L
     MOV R1, #160
     LDR R3,=char_76
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #304 ;T
     MOV R1, #160
     LDR R3,=char_84
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #320 ;I
     MOV R1, #160
     LDR R3,=char_73
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #336 ;P
     MOV R1, #160
     LDR R3,=char_80
-    BL DRAW_IMAGE
+    BL DRAW_CHAR
     MOV R0, #352 ;L
     MOV R1, #160
     LDR R3,=char_76
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #368 ;A
     MOV R1, #160
     LDR R3,=char_65
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #384 ;Y
     MOV R1, #160
     LDR R3,=char_89
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #400 ;E
     MOV R1, #160
     LDR R3,=char_69
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     MOV R0, #416 ;R
     MOV R1, #160
     LDR R3,=char_82
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     B GAME1_FUNCTION_END
 	LTORG
 GAME1_RUNNING
+    MOV R5, #1
+    BL DELAY_MS
+
 ; Update Score
-    MOV R0, #214
-    MOV R1, #10
-    MOV R3, #56
-    MOV R4, #26
-    MOV R5, #0x0000
-    BL DRAW_RECT ; Clear the score area
+    ; MOV R0, #214
+    ; MOV R1, #10
+    ; MOV R3, #56
+    ; MOV R4, #26
+    ; MOV R5, #0x0000
+    ; BL DRAW_RECT ; Clear the score area
+    MOV R0, #238
+    MOV R1, #22
+    MOV R3, #6
+    MOV R4, #2
+    MOV R5, #0x07AF
+    BL DRAW_RECT
     MOV R0, #220
     MOV R1, #15
     LDR R3, =PONG_score1
@@ -694,7 +1271,9 @@ GAME1_RUNNING
     BLEQ SCORE_EIGHT
     CMP R4, #9
     BLEQ SCORE_NINE
-    BL DRAW_IMAGE ; Draw the score image
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR ; Draw the score image
     MOV R0, #250
     MOV R1, #15
     LDR R3, =PONG_score2
@@ -719,7 +1298,9 @@ GAME1_RUNNING
     BLEQ SCORE_EIGHT
     CMP R4, #9
     BLEQ SCORE_NINE
-    BL DRAW_IMAGE
+    LDR R4, =PONG_txt_color
+    LDR R5, =PONG_bg_color
+    BL DRAW_CHAR
     B END_UPDATE_SCORE
 SCORE_ZERO
     PUSH {LR}
@@ -861,7 +1442,7 @@ LOOP_FUNCTION
     SUB R1, R1, R2
     MOV R3, R2, LSL #1
     MOV R4, R3
-    MOV R5, #0xFFFF
+    LDR R5, =PONG_fg_color
     BL DRAW_RECT
 ; ================Update Bats
     LDR R0, =PONG_rbat
@@ -923,7 +1504,7 @@ BAT_ADD_PIXEL_LINE FUNCTION
     LDR R3, =PONG_pad_hwidth
     LSL R3, #1
     MOV R4, #2
-    LDR R5, =0xFFFF
+    LDR R5, =PONG_fg_color
     BL DRAW_RECT
     POP {R0, R1}
     LDRH R2, [R0]
@@ -935,7 +1516,7 @@ BAT_ADD_PIXEL_LINE FUNCTION
     LDR R3, =PONG_pad_hwidth
     LSL R3, #1
     MOV R4, #2
-    LDR R5, =0xFFFF
+    LDR R5, =PONG_fg_color
     BL DRAW_RECT
     POP {R1-R5, LR}
     BX LR
@@ -955,7 +1536,7 @@ DRAW_FULL_BATS FUNCTION
     LSL R3, #1
     LDR R4, =PONG_pad_hheight
     LSL R4, #1
-    LDR R5, =0xFFFF
+    LDR R5, =PONG_fg_color
     BL DRAW_RECT ; Draw right bat
     LDR R0, =PONG_lbat_x
     LDR R1, =PONG_pad_hwidth
@@ -968,7 +1549,7 @@ DRAW_FULL_BATS FUNCTION
     LSL R3, #1
     LDR R4, =PONG_pad_hheight
     LSL R4, #1
-    LDR R5, =0xFFFF
+    LDR R5, =PONG_fg_color
     BL DRAW_RECT ; Draw left bat
     POP {R0-R5, LR}
     BX LR
@@ -1336,7 +1917,10 @@ MENU_INT2_HANDLER
     BL RESET_MENU ; Reset the menu before switching games
 	MOV R0, #0x0000
 	BL FILL_SCREEN
-	;BL DRAW_GAME1
+    CMP R11, #1
+    BEQ RESET_PONG_LBL
+RESET_PONG_LBL
+    BL PONG_RESET ; Reset the game
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER

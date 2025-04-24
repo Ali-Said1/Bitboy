@@ -47,6 +47,6 @@ def image_to_arm_asm(image_path, output_file, BGR=False):
 
 # Choose BGR or RGB depending on hardware
 #  or just try both
-image_to_arm_asm(image_path="./gamelogo.png",
-                 output_file="data.s",
+image_to_arm_asm(image_path="./pongloadingscreen.png",
+                 output_file="pongimages1.s",
                  BGR=False)

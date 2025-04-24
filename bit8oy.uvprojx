@@ -395,11 +395,6 @@
               <FilePath>.\hal.s</FilePath>
             </File>
             <File>
-              <FileName>fonts1.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>.\fonts1.s</FilePath>
-            </File>
-            <File>
               <FileName>gamelogo.s</FileName>
               <FileType>2</FileType>
               <FilePath>.\gamelogo.s</FilePath>
@@ -408,6 +403,16 @@
               <FileName>PONG.s</FileName>
               <FileType>2</FileType>
               <FilePath>.\PONG.s</FilePath>
+            </File>
+            <File>
+              <FileName>fonts.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\fonts.s</FilePath>
+            </File>
+            <File>
+              <FileName>pongimages.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\pongimages.s</FilePath>
             </File>
           </Files>
         </Group>
