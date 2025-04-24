@@ -44,6 +44,9 @@ PONG_GAME_MODE        DCB 0x00		; 0 = Single player, 1= Multiplayer
         AREA PONGCODE, CODE, READONLY
 		EXPORT PONG_RESET
 		EXPORT PONG_LOOP
+		EXPORT PONG_BAT_UP
+        EXPORT PONG_BAT_DOWN
+
 PONG_RESET FUNCTION
 		; reset all data here
 		; Store into PONG_ball_pos (32-bit)
@@ -340,53 +343,40 @@ end_y
 ;	BX LR
 ;
 
-; ----------------------------------------------------
-; follow: For Simulation purposes
-follow
-        PUSH {r3-r12, lr}
-        LDR 	r10, =PONG_ball_pos
-        LDRH 	r6, [r10]
-		ADD		r6, r6, #20
-        LDR 	r10, =PONG_rbat
-        STRH 	r6, [r10]
-		SUB		r6, r6, #40
-		;LDR 	r10, =PONG_lbat
-        ;STRH 	r6, [r10]
-        POP {r3-r12, lr}
-        BX lr
-
-
-
-
-; ----------------------------------------------------
-; rbat_down: Move right bat down
-; rbat_down
-;         PUSH {r3-r12, lr}
-;         LDR r10, =PONG_rbat
-;         LDRH r6, [r10]
-;         ADDS r6, r6, #3
-; 		MOV r7, #Height
-; 		SUB r7, r7, #PONG_pad_hheight
-;         CMP r6, r7
-;         BGE rbat_down_return
-;         STRH r6, [r10]
-; rbat_down_return
-;         POP {r3-r12, lr}
-;         BX lr
-
-; ; ----------------------------------------------------
-; ; rbat_up: Move right bat up
-; rbat_up
-;         PUSH {r3-r12, lr}
-;         LDR r10, =PONG_rbat
-;         LDRH r6, [r10]
-;         SUB r6, r6, #3
-;         CMP r6, #PONG_pad_hheight
-;         BLE rbat_up_return
-;         STRH r6, [r10]
-; rbat_up_return
-;         POP {r3-r12, lr}
-;         BX lr
-
-
     END
+; ----------------------------------------------------
+; PONG_BAT_DOWN: Move bat down
+; Input: R0 = address of bat_y (16-bit)
+; Output: Updates bat_y if within bounds
+PONG_BAT_DOWN FUNCTION
+    PUSH {r0,r6,r7,r10, lr}
+    MOV r10, r0
+    LDRH r6, [r10]
+    ADD r6, r6, #1
+    MOV r7, #Height
+    SUB r7, r7, #PONG_pad_hheight
+    CMP r6, r7
+    BGE bat_down_return
+    STRH r6, [r10]
+bat_down_return
+    POP {r0,r6,r7,r10, lr}
+    BX lr
+    ENDFUNC
+
+
+; ----------------------------------------------------
+; PONG_BAT_UP: Move bat up
+; Input: R0 = address of bat_y (16-bit)
+; Output: Updates bat_y if within bounds
+PONG_BAT_UP FUNCTION
+    PUSH {r0,r6,r10, lr}
+    MOV r10, r0
+    LDRH r6, [r10]
+    SUB r6, r6, #1
+    CMP r6, #PONG_pad_hheight
+    BLE bat_up_return
+    STRH r6, [r10]
+bat_up_return
+    POP {r0,r6,r7,r10, lr}
+    BX lr
+    ENDFUNC
