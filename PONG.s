@@ -343,7 +343,6 @@ end_y
 ;	BX LR
 ;
 
-    END
 ; ----------------------------------------------------
 ; PONG_BAT_DOWN: Move bat down
 ; Input: R0 = address of bat_y (16-bit)
@@ -377,6 +376,7 @@ PONG_BAT_UP FUNCTION
     BLE bat_up_return
     STRH r6, [r10]
 bat_up_return
-    POP {r0,r6,r7,r10, lr}
+    POP {r0,r6,r10, lr}
     BX lr
     ENDFUNC
+    END
