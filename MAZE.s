@@ -8,6 +8,7 @@ MAZEGEN_WALL      EQU 1       ; Wall cell
 MAZEGEN_PATH      EQU 0       ; Path cell
 MAZE_HEIGHT      EQU 31       
 MAZE_WIDTH      EQU 37      
+MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
     ALIGN
         AREA MAZEVARS, DATA, READWRITE
 		EXPORT MAZE_layout
