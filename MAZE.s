@@ -7,8 +7,8 @@
 
 MAZEGEN_WALL      EQU 1       ; Wall cell
 MAZEGEN_PATH      EQU 0       ; Path cell
-MAZE_HEIGHT      EQU 11       
-MAZE_WIDTH      EQU 11
+MAZE_HEIGHT      EQU 31     
+MAZE_WIDTH      EQU 37
 MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
     ALIGN
         AREA MAZEVARS, DATA, READWRITE
@@ -73,7 +73,7 @@ MAZE_GENERATE FUNCTION
         PUSH    {R0-R12, LR}
         LDR R0, =MAZE_stack_ptr
 		LDR	R1, =MAZE_stack
-		LDR R1, [R0]
+		STR R1, [R0]
         ; Initialize maze with all walls
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH*MAZE_HEIGHT
@@ -98,11 +98,10 @@ init_maze_loop
 dfs_loop
 		PUSH {LR}
 		LDR R1, =MAZE_stack
-		LDR R2, =MAZE_stack_ptr
-		LDR R2, [R2]
+		LDR R3, =MAZE_stack_ptr
+		LDRH R2, [R3]
 		ADD R1, R2
 		STRH R4, [R1]
-		LDR R3, =MAZE_stack_ptr
 		ADD R2, #2
 		STRH R2, [R3]
         
@@ -208,7 +207,7 @@ backtrack
         POP {LR}
 		LDR R1, =MAZE_stack
 		LDR R3, =MAZE_stack_ptr
-		LDR R2, [R3]
+		LDRH R2, [R3]
 		SUB R2, #2
 		STRH R2, [R3]
 		ADD R1, R2

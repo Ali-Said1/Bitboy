@@ -1589,7 +1589,6 @@ DRAW_GAME2 FUNCTION
     MOV R4, #0x136
     MOV R5, #0x0
     BL DRAW_RECT ; Draw the maze
-    MOV R5, #0xFFFF ; Set the foreground color to white
     LDR R6, =MAZE_layout
     LDR R7, =MAZE_WIDTH
 	SUB R7, R7, #1
@@ -1619,6 +1618,7 @@ MAZE_COLUMN_LOOP
     MUL R2, R10, R3 ; Row index multiplied by dimesion
     ADD R1, R1, R2 ; Y coordinate
     MOV R4, R3 ; Set the width and height for the rectangle
+    MOV R5, #0xFFFF ; Set the foreground color to white
     BL DRAW_RECT ; Draw the path block
 MAZE_COLUMN_CHECK
     CMP R9, R7
