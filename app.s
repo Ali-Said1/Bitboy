@@ -1592,9 +1592,9 @@ DRAW_GAME2 FUNCTION
     MOV R5, #0xFFFF ; Set the foreground color to white
     LDR R6, =MAZE_layout
     LDR R7, =MAZE_WIDTH
-    SUB R7, R7 , #1
+	SUB R7, R7, #1
     LDR R8, =MAZE_HEIGHT
-    SUB R8, R8 , #1
+	SUB R8, R8, #1
     LDR R12, =MAZEGEN_PATH
     MOV R10, #0 ; Initialize the row index
 MAZE_ROW_LOOP
@@ -1602,8 +1602,10 @@ MAZE_ROW_LOOP
     MOV R9, #0 ; Reset the column index for each column
 MAZE_COLUMN_LOOP
 	ADD R9, #1
+	ADD R7, R7, #1
     MUL R2, R10, R7
-    ADD R2, R2, R9 ; Calculate the index in the maze layout
+    SUB R7, R7, #1
+	ADD R2, R2, R9 ; Calculate the index in the maze layout
     LDRB R11, [R6, R2] ; Load the maze value at the current index
     CMP R11, R12
     BNE MAZE_COLUMN_CHECK ; If not a path, skip drawing

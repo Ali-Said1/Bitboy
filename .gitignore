@@ -1,6 +1,8 @@
+.gitignore
 Listings/
 Objects/
 DebugConfig/
 RTE/
 dino.s
 pongloadingscreen.png
+memdump.bin
