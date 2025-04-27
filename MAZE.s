@@ -19,8 +19,9 @@ MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
 MAZE_layout      SPACE MAZE_WIDTH*MAZE_HEIGHT   ; Maze layout (0=path, 1=wall)
 MAZE_pos      DCW 0x0000                        ; XXYY
 MAZE_prng_state
-    DCB     0x12                          ; Initial seed for the PRNG
-
+    DCD     0x12                          ; Initial seed for the PRNG
+MAZE_stack SPACE 2*MAZE_WIDTH*MAZE_HEIGHT
+MAZE_stack_ptr  DCW	0x0
         AREA MAZEGENCODE, CODE, READONLY
         EXPORT MAZE_GENERATE
 
@@ -70,7 +71,9 @@ get_random  FUNCTION
 ; This replaces the current maze layout with a randomly generated one
 MAZE_GENERATE FUNCTION
         PUSH    {R0-R12, LR}
-        
+        LDR R0, =MAZE_stack_ptr
+		LDR	R1, =MAZE_stack
+		LDR R1, [R0]
         ; Initialize maze with all walls
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH*MAZE_HEIGHT
@@ -93,7 +96,16 @@ init_maze_loop
         
 
 dfs_loop
-        PUSH {R4, LR}
+		PUSH {LR}
+		LDR R1, =MAZE_stack
+		LDR R2, =MAZE_stack_ptr
+		LDR R2, [R2]
+		ADD R1, R2
+		STRH R4, [R1]
+		LDR R3, =MAZE_stack_ptr
+		ADD R2, #2
+		STRH R2, [R3]
+        
         ; R4 = X, R5 = Y of current cell
         MOV     R5, R4
         AND     R5, #0xFF ; Y = current Y
@@ -193,7 +205,16 @@ process_west
 backtrack
         LSL     R4, R4, #8
         ADD     R4, R5          ; Starting Y
-        POP {R4, LR}
+        POP {LR}
+		LDR R1, =MAZE_stack
+		LDR R3, =MAZE_stack_ptr
+		LDR R2, [R3]
+		SUB R2, #2
+		STRH R2, [R3]
+		ADD R1, R2
+		LDRH R4, [R1]
+		
+		
         BX      LR
 next
         LSL     R4, R4, #8
@@ -207,7 +228,7 @@ generation_complete
         POP    {R0-R12, LR}
 		MOV R0, #0
         BX LR
-
+    ENDFUNC
 
 
 
