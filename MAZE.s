@@ -4,9 +4,12 @@
         EXPORT  MAZE_HEIGHT
         EXPORT  MAZE_WIDTH
         EXPORT  MAZE_BLOCK_DIM
-
+        EXPORT MAZEGEN_PATH_SOL
 MAZEGEN_WALL      EQU 1       ; Wall cell
 MAZEGEN_PATH      EQU 0       ; Path cell
+MAZEGEN_PATH_SOL EQU 2
+
+MAZEGEN_PATH_VISITED EQU 0x11
 MAZE_HEIGHT      EQU 31     
 MAZE_WIDTH      EQU 37
 MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
@@ -34,6 +37,7 @@ MAZE_GAME_STATE DCB 0x0 ; 0 = playing, 1 = win, 2 = lose
         AREA MAZEGENCODE, CODE, READONLY
         EXPORT MAZE_RESET
         EXPORT MAZE_GENERATE
+        EXPORT MAZE_SOLVER
         EXPORT MAZE_MOVE_DOWN
         EXPORT MAZE_MOVE_LEFT
         EXPORT MAZE_MOVE_RIGHT
@@ -80,6 +84,7 @@ get_random  FUNCTION
     POP     {R1-R5, LR}        ; Restore R4, R5, and return
     BX LR
     ENDFUNC
+    LTORG
 MAZE_RESET FUNCTION
         PUSH    {R0-R1, LR}
         LDR     R0, =MAZE_pos
@@ -103,6 +108,7 @@ MAZE_RESET FUNCTION
         POP    {R0-R1, LR}
         BX LR
         ENDFUNC
+        LTORG
 ; Function: MAZE_GENERATE
 ; Generates a random maze using Depth-First Search with backtracking
 ; This replaces the current maze layout with a randomly generated one
@@ -268,7 +274,7 @@ generation_complete
 ; SOLVER
 ; Traverses the map using dfs and finds the solution.
 ; Allow us to use some more time complexity so we can solve.
-SOLVER FUNCTION
+MAZE_SOLVER FUNCTION
         PUSH {R0-R12, LR}
         LDR R0, =MAZE_stack_ptr
         MOV R1, #0
@@ -281,6 +287,8 @@ SOLVER FUNCTION
         LSL     R4, R4, #8
         ADD     R4, R5          ; Starting Y
         ; R4 XXYY
+        BL dfs_sol_loop
+        B found_goal
 dfs_sol_loop
         PUSH {LR}
 
@@ -301,7 +309,7 @@ dfs_sol_loop
 dfs_sol_rloop
         ; Mark start position as path
 
-        LDR     R0, =MAZE_layout
+	LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH
         MUL     R1, R5, R1
         ADD     R1, R1, R4
@@ -315,7 +323,8 @@ dfs_sol_rloop
         ; R0 = has neighbor?, R1 = direction (0=N, 1=E, 2=S, 3=W)
         CMP     R4, #MAZE_WIDTH - 2
         CMPEQ   R5, #MAZE_HEIGHT - 2
-        BEQ.W     found_goal
+        MOVEQ R11, #1
+        BEQ.W     sol_backtrack
         CMP     R0, #0
         BEQ     sol_backtrack
         
@@ -407,6 +416,9 @@ sol_process_west
 
         
 sol_backtrack
+        CMP R11, #1
+        POPEQ {LR}
+        BXEQ LR
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH
         MUL     R1, R5, R1
@@ -435,7 +447,6 @@ sol_next
         AND     R5, #0xFF ; Y = current Y
         LSR     R4, R4, #8 ; X = current X
         MOV R8, #1
-		NOP
         B       dfs_sol_rloop
 found_goal
         POP    {R0-R12, LR}

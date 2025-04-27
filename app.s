@@ -111,9 +111,11 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_GAME_STATE
     IMPORT MAZE_RESET
     IMPORT MAZE_GENERATE
+    IMPORT MAZE_SOLVER
     IMPORT MAZE_LOGO
     IMPORT MAZE_WALL
     IMPORT MAZE_PATH
+    IMPORT MAZEGEN_PATH_SOL
     IMPORT MAZE_KNIGHT
     IMPORT MAZE_MOVE_DOWN
     IMPORT MAZE_MOVE_LEFT
@@ -1745,16 +1747,16 @@ GAME2_UPDATE_TIME FUNCTION
     ENDFUNC
 GAME2_LOST FUNCTION
     PUSH {R0-R12, LR}
-    MOV R0, #100
-    MOV R1, #5
-    LDR R5, =MAZE_BLOCK_DIM
-    LSL R5, R5, #1 ; Multiply by 2 for width and height
-    LDR R3, =MAZE_WIDTH
-    MUL R3, R3, R5 ; Total width of the maze
-    LDR R4,=MAZE_HEIGHT
-    MUL R4, R4, R5 ; Total height of the maze
-    MOV R5, #0xF800 ; Set the foreground color to red
-    BL DRAW_RECT ; Draw the rectangle for the timer
+    ; MOV R0, #100
+    ; MOV R1, #5
+    ; LDR R5, =MAZE_BLOCK_DIM
+    ; LSL R5, R5, #1 ; Multiply by 2 for width and height
+    ; LDR R3, =MAZE_WIDTH
+    ; MUL R3, R3, R5 ; Total width of the maze
+    ; LDR R4,=MAZE_HEIGHT
+    ; MUL R4, R4, R5 ; Total height of the maze
+    ; MOV R5, #0xF800 ; Set the foreground color to red
+    ; BL DRAW_RECT ; Draw the rectangle for the timer
     MOV R0, #16
     MOV R1, #200
     LDR R3, =char_48 ; 0
@@ -1834,7 +1836,7 @@ GAME2_LOST FUNCTION
     MOV R4, #0xF800 ; Set the foreground color to red
     MOV R5, #0x0
     BL DRAW_CHAR
-
+    BL MAZE_SOLVER
     LDR R6, =MAZE_layout
     LDR R7, =MAZE_WIDTH
 	SUB R7, R7, #1
@@ -1855,6 +1857,9 @@ MAZE_SOL_COLUMN_LOOP
     CMP R11, R12
     BNE MAZE_SOL_COLUMN_CHECK ; If not a path, skip drawing
     ; Calculate the coordinates for drawing the path
+	CMP R10, #0
+	CMPEQ R9, #0
+	BEQ MAZE_SOL_COLUMN_CHECK
     LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
     LSL R3, R3, #1 ; Multiply by 2 for width and height
     MOV R0, #100

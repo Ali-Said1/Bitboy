@@ -154,7 +154,7 @@
           <Type>0</Type>
           <LineNumber>2253</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134225198</Address>
+          <Address>134226016</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -168,25 +168,9 @@
         <Bp>
           <Number>1</Number>
           <Type>0</Type>
-          <LineNumber>1695</LineNumber>
+          <LineNumber>280</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134223910</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>.\app.s</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression>\\bit8oy\app.s\1695</Expression>
-        </Bp>
-        <Bp>
-          <Number>2</Number>
-          <Type>0</Type>
-          <LineNumber>473</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134219280</Address>
+          <Address>134218882</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -195,14 +179,62 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>.\MAZE.s</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\bit8oy\MAZE.s\473</Expression>
+          <Expression>\\bit8oy\MAZE.s\280</Expression>
+        </Bp>
+        <Bp>
+          <Number>2</Number>
+          <Type>0</Type>
+          <LineNumber>296</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>134218910</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>1</BreakIfRCount>
+          <Filename>.\MAZE.s</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\bit8oy\MAZE.s\296</Expression>
+        </Bp>
+        <Bp>
+          <Number>3</Number>
+          <Type>0</Type>
+          <LineNumber>1695</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>0</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>0</BreakIfRCount>
+          <Filename>.\app.s</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression></Expression>
+        </Bp>
+        <Bp>
+          <Number>4</Number>
+          <Type>0</Type>
+          <LineNumber>2256</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>0</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>0</BreakIfRCount>
+          <Filename>.\app.s</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression></Expression>
         </Bp>
       </Breakpoint>
       <MemoryWindow1>
         <Mm>
           <WinNumber>1</WinNumber>
           <SubType>0</SubType>
-          <ItemText>&amp;char_52</ItemText>
+          <ItemText>0x080005C9</ItemText>
           <AccSizeX>0</AccSizeX>
         </Mm>
       </MemoryWindow1>
