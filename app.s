@@ -94,6 +94,20 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT PONG_BAT_DOWN
     IMPORT PONG_BAT_UP
     IMPORT PONG_rbat
+    ;===============================END PONG IMPORTS=================================
+    ;===============================Maze Imports=================================
+    IMPORT MAZEGEN_WALL
+    IMPORT MAZEGEN_PATH
+    IMPORT MAZE_HEIGHT
+    IMPORT MAZE_WIDTH
+    IMPORT MAZE_BLOCK_DIM
+    IMPORT MAZE_layout
+    IMPORT MAZE_pos
+    IMPORT MAZE_prng_state
+    IMPORT MAZE_GENERATE
+    ;===============================END Maze Imports=================================
+
+
 	AREA MYCODE, CODE, READONLY
 
 	ENTRY
@@ -1581,18 +1595,20 @@ DRAW_GAME2 FUNCTION
     SUB R7, R7 , #1
     LDR R8, =MAZE_HEIGHT
     SUB R8, R8 , #1
-    ; LDR R12, =MAZEGEN_PATH
+    LDR R12, =MAZEGEN_PATH
     MOV R10, #0 ; Initialize the row index
 MAZE_ROW_LOOP
+	ADD R10, #1
     MOV R9, #0 ; Reset the column index for each column
 MAZE_COLUMN_LOOP
+	ADD R9, #1
     MUL R2, R10, R7
     ADD R2, R2, R9 ; Calculate the index in the maze layout
     LDRB R11, [R6, R2] ; Load the maze value at the current index
-    CMP R11, #MAZEGEN_PATH
+    CMP R11, R12
     BNE MAZE_COLUMN_CHECK ; If not a path, skip drawing
     ; Calculate the coordinates for drawing the path
-    MOV R3, #MAZE_BLOCK_DIM ; Set the block dimension
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
     LSL R3, R3, #1 ; Multiply by 2 for width and height
     MOV R0, #100
     MUL R2, R9, R3 ; Column index multiplied by dimesion
@@ -1610,6 +1626,7 @@ MAZE_COLUMN_CHECK
     POP {R0-R11, LR}
     BX LR
     ENDFUNC
+    LTORG
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -1983,13 +2000,18 @@ MENU_INT2_HANDLER
 	BL FILL_SCREEN
     CMP R11, #1
     BEQ RESET_PONG_LBL
+    CMP R11, #2
+    BEQ RESET_MAZE_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
+    B skip_toggle2
+RESET_MAZE_LBL
+    BL DRAW_GAME2 ; Draw the maze
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
 
-    B skip_toggle
+    B skip_toggle2
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt

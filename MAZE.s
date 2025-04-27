@@ -1,13 +1,14 @@
-
+        AREA MAZECONST, DATA, READONLY
         EXPORT  MAZEGEN_WALL
         EXPORT  MAZEGEN_PATH
         EXPORT  MAZE_HEIGHT
         EXPORT  MAZE_WIDTH
+        EXPORT  MAZE_BLOCK_DIM
 
 MAZEGEN_WALL      EQU 1       ; Wall cell
 MAZEGEN_PATH      EQU 0       ; Path cell
-MAZE_HEIGHT      EQU 31       
-MAZE_WIDTH      EQU 37      
+MAZE_HEIGHT      EQU 11       
+MAZE_WIDTH      EQU 11     
 MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
     ALIGN
         AREA MAZEVARS, DATA, READWRITE
@@ -20,7 +21,6 @@ MAZE_pos      DCW 0x0000                        ; XXYY
 MAZE_prng_state
     DCB     0x12                          ; Initial seed for the PRNG
 
-MAZEGEN_seed      DCW 0                     ; Random seed
         AREA MAZEGENCODE, CODE, READONLY
         EXPORT MAZE_GENERATE
 
@@ -94,6 +94,7 @@ dfs_loop
         PUSH {R4,R5, LR}
 dfs_rloop
         ; Mark start position as path
+
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH
         MUL     R1, R5, R1
@@ -191,6 +192,7 @@ next
         B       dfs_rloop
 generation_complete
         POP    {R0-R12, LR}
+		MOV R0, #0
         BX LR
 
 
