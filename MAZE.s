@@ -24,6 +24,10 @@ MAZE_stack SPACE 2*MAZE_WIDTH*MAZE_HEIGHT
 MAZE_stack_ptr  DCW	0x0
         AREA MAZEGENCODE, CODE, READONLY
         EXPORT MAZE_GENERATE
+        EXPORT MAZE_MOVE_DOWN
+        EXPORT MAZE_MOVE_LEFT
+        EXPORT MAZE_MOVE_RIGHT
+        EXPORT MAZE_MOVE_UP
 
 
 
@@ -71,6 +75,10 @@ get_random  FUNCTION
 ; This replaces the current maze layout with a randomly generated one
 MAZE_GENERATE FUNCTION
         PUSH    {R0-R12, LR}
+        ;; Initialize the maze player position to (1,1)
+        LDR     R0, =MAZE_pos
+        MOV     R1, #0x0101
+        STRH    R1, [R0]
         ; Initialize maze with all walls
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH*MAZE_HEIGHT
@@ -372,5 +380,131 @@ no_neighbors
         BX      LR
 
     ENDFUNC
+
+; Function: MAZE_MOVE_LEFT
+; Moves the current position left in the maze (decreases X by 1)
+MAZE_MOVE_LEFT FUNCTION
+        PUSH    {R0-R5, LR}
+        LDR     R0, =MAZE_pos
+        LDRH     R4, [R0]            ; current pos: high= X, low = Y
+        MOV     R5, R4
+        AND     R5, #0xFF           ; R5 = current Y
+        LSR     R4, R4, #8          ; R4 = current X
+        SUB     R4, R4, #1          ; new X = X - 1
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1          ; R1 = Y * width
+        ADD     R1, R1, R4          ; index = (Y * width + new X)
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R3, [R2]            ; Get cell state
+        CMP     R3, #MAZEGEN_WALL
+        BEQ     ret_move_left       ; If wall, do not update
+        ; Update MAZE_pos: pack new X and current Y back together
+        LSL     R4, R4, #8          ; newX << 8
+        ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
+        STRH     R4, [R0]
+ret_move_left
+        POP     {R0-R5, LR}
+        BX      LR
+        ENDFUNC
+
+; Function: MAZE_MOVE_RIGHT
+; Moves the current position right in the maze (increases X by 1)
+MAZE_MOVE_RIGHT FUNCTION
+        PUSH    {R0-R5, LR}
+        LDR     R0, =MAZE_pos
+        LDRH     R4, [R0]            ; current pos: high= X, low = Y
+        MOV     R5, R4
+        AND     R5, #0xFF           ; R5 = current Y
+        LSR     R4, R4, #8          ; R4 = current X
+        ADD     R4, R4, #1          ; new X = X + 1
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1          ; R1 = Y * width
+        ADD     R1, R1, R4          ; index = (Y * width + new X)
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R3, [R2]            ; Get cell state
+        CMP     R3, #MAZEGEN_WALL
+        BEQ     ret_move_right      ; If wall, do not update
+        ; Update MAZE_pos
+        LSL     R4, R4, #8          ; newX << 8
+        ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
+        STRH     R4, [R0]
+ret_move_right
+        POP     {R0-R5, LR}
+        BX      LR
+        ENDFUNC
+
+; Function: MAZE_MOVE_UP
+; Moves the current position up in the maze (decreases Y by 1)
+MAZE_MOVE_UP FUNCTION
+        PUSH    {R0-R5, LR}
+        LDR     R0, =MAZE_pos
+        LDRH     R4, [R0]            ; current pos: high= X, low = Y
+        MOV     R5, R4
+        LSR     R4, R4, #8          ; R4 = current X
+        AND     R5, #0xFF           ; R5 = current Y
+        SUB     R5, R5, #1          ; new Y = Y - 1
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1          ; R1 = new Y * width
+        ADD     R1, R1, R4          ; index = (new Y * width + X)
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R3, [R2]            ; Get cell state
+        CMP     R3, #MAZEGEN_WALL
+        BEQ     ret_move_up         ; If wall, do not update
+        ; Update MAZE_pos: pack current X and new Y together
+        LSL     R4, R4, #8          ; X in high byte
+        ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
+        STRH     R4, [R0]
+ret_move_up
+        POP     {R0-R5, LR}
+        BX      LR
+        ENDFUNC
+
+; Function: MAZE_MOVE_DOWN
+; Moves the current position down in the maze (increases Y by 1)
+MAZE_MOVE_DOWN FUNCTION
+        PUSH    {R0-R5, LR}
+        LDR     R0, =MAZE_pos
+        LDRH     R4, [R0]            ; current pos: high= X, low = Y
+        MOV     R5, R4
+        LSR     R4, R4, #8          ; R4 = current X
+        AND     R5, #0xFF           ; R5 = current Y
+        ADD     R5, R5, #1          ; new Y = Y + 1
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1          ; R1 = new Y * width
+        ADD     R1, R1, R4          ; index = (new Y * width + X)
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R3, [R2]            ; Get cell state
+        CMP     R3, #MAZEGEN_WALL
+        BEQ     ret_move_down       ; If wall, do not update
+        ; Update MAZE_pos: pack current X and new Y together
+        LSL     R4, R4, #8          ; X << 8
+        ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
+        STRH     R4, [R0]
+ret_move_down
+        POP     {R0-R5, LR}
+        BX      LR
+        ENDFUNC
+
+
+
+
+
+; A % B = C
+; Inputs: R0 = A, R1 = B
+; Output: R2 = C
+MODULO FUNCTION
+        PUSH {R0, R1, LR}
+        MOV  R2, R0             ; R2 = R0
+        UDIV R0, R0, R1         ; R0 = R0 // R1
+        MLS R2, R1, R0, R2      ; R2 = R2 - R1 * R0
+        POP {R0, R1, LR}
+        BX LR
+        ENDFUNC
+
+
 
     END
