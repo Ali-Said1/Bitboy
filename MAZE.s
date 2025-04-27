@@ -265,6 +265,317 @@ generation_complete
         BX LR
     ENDFUNC
 
+; SOLVER
+; Traverses the map using dfs and finds the solution.
+; Allow us to use some more time complexity so we can solve.
+SOLVER FUNCTION
+        PUSH {R0-R12, LR}
+        LDR R0, =MAZE_stack_ptr
+        MOV R1, #0
+        STRH R1, [R0]
+        MOV R11, #0 ; Found Goal State: 0 = Not Found, 1 = Found
+
+        MOV     R5, #1         ; Starting Y
+        ; Start at position (1,1) (to ensure there's a wall border)
+        MOV     R4, #1          ; Starting X
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
+        ; R4 XXYY
+dfs_sol_loop
+        PUSH {LR}
+
+
+        LDR R1, =MAZE_stack
+        LDR R3, =MAZE_stack_ptr
+        LDRH R2, [R3]
+        ADD R1, R2
+        STRH R4, [R1]
+        ADD R2, #2
+        STRH R2, [R3]
+        
+        ; R4 = X, R5 = Y of current cell
+        MOV     R5, R4
+        AND     R5, #0xFF ; Y = current Y
+        LSR     R4, R4, #8 ; X = current X
+        MOV R8, #0
+dfs_sol_rloop
+        ; Mark start position as path
+
+        LDR     R0, =MAZE_layout
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1
+        ADD     R1, R1, R4
+        ADD     R0, R0, R1
+        MOV     R2, #MAZEGEN_PATH_SOL
+        STRB    R2, [R0]
+
+
+        ; Check for unvisited neighbors
+        BL      MAZEGEN_GET_OPEN_NEIGHBOR
+        ; R0 = has neighbor?, R1 = direction (0=N, 1=E, 2=S, 3=W)
+        CMP     R4, #MAZE_WIDTH - 2
+        CMPEQ   R5, #MAZE_HEIGHT - 2
+        BEQ.W     found_goal
+        CMP     R0, #0
+        BEQ     sol_backtrack
+        
+
+        
+        CMP     R8, #1
+        BNE     no_backtrack
+        MOV     R6, R4
+        LSL     R6, #8
+        ORR     R6, R5 ; XXYY
+        LDR R7, =MAZE_stack
+        LDR R3, =MAZE_stack_ptr
+        LDRH R2, [R3]
+        ADD R7, R2
+        STRH R6, [R7]
+        ADD R2, #2
+        STRH R2, [R3]
+no_backtrack
+        ; Calculate wall position between current and neighbor
+        CMP     R1, #0          ; North?
+        BEQ     sol_process_north
+        CMP     R1, #1          ; East?
+        BEQ     sol_process_east
+        CMP     R1, #2          ; South?
+        BEQ     sol_process_south
+        B       sol_process_west    ; West
+        
+sol_process_north
+        
+        MOV     R0, R4          ; Wall X = current X
+        SUB     R1, R5, #1      ; Wall Y = current Y - 1
+        MOV     R3, #MAZE_WIDTH
+        MUL     R3, R1, R3      ; y*width
+        ADD     R3, R3, R0      ; y*width + x
+        LDR     R1, =MAZE_layout
+        ADD     R1, R1, R3
+        MOV     R3, #MAZEGEN_PATH_SOL
+        STRB    R3, [R1]        ; Set path at wall
+        
+
+        
+        SUB R5, #1
+        B      sol_next
+sol_process_east
+        ; Wall at (x+1, y)
+        ADD     R0, R4, #1      ; Wall X = current X + 1
+        MOV     R1, R5          ; Wall Y = current Y
+        MOV     R3, #MAZE_WIDTH
+        MUL     R3, R1, R3      ; y*width
+        ADD     R3, R3, R0      ; y*width + x
+        LDR     R1, =MAZE_layout
+        ADD     R1, R1, R3
+        MOV     R3, #MAZEGEN_PATH_SOL
+        STRB    R3, [R1]        ; Set path at wall
+        
+
+        ADD R4, #1
+        B      sol_next
+sol_process_south
+        ; Wall at (x, y+1)
+        MOV     R0, R4          ; Wall X = current X
+        ADD     R1, R5, #1      ; Wall Y = current Y + 1
+        MOV     R3, #MAZE_WIDTH
+        MUL     R3, R1, R3      ; y*width
+        ADD     R3, R3, R0      ; y*width + x
+        LDR     R1, =MAZE_layout
+        ADD     R1, R1, R3
+        MOV     R3, #MAZEGEN_PATH_SOL
+        STRB    R3, [R1]        ; Set path at wall
+
+        ADD R5, R5, #1
+        B       sol_next
+sol_process_west
+        ; Wall at (x-1, y)
+        SUB     R0, R4, #1      ; Wall X = current X - 1
+        MOV     R1, R5          ; Wall Y = current Y
+        MOV     R3, #MAZE_WIDTH
+        MUL     R3, R1, R3      ; y*width
+        ADD     R3, R3, R0      ; y*width + x
+        LDR     R1, =MAZE_layout
+        ADD     R1, R1, R3
+        MOV     R3, #MAZEGEN_PATH_SOL
+        STRB    R3, [R1]        ; Set path at wall
+        
+        SUB R4, R4, #1
+        B sol_next
+
+
+
+        
+sol_backtrack
+        LDR     R0, =MAZE_layout
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R5, R1
+        ADD     R1, R1, R4
+        ADD     R0, R0, R1
+        CMP     R11, #0
+        MOVEQ     R2, #MAZEGEN_PATH_VISITED
+        STRBEQ    R2, [R0]
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
+        POP {LR}
+        LDR R1, =MAZE_stack
+        LDR R3, =MAZE_stack_ptr
+        LDRH R2, [R3]
+        SUB R2, #2
+        STRH R2, [R3]
+        ADD R1, R2
+        LDRH R4, [R1]
+        
+        BX      LR
+sol_next
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
+        BL      dfs_sol_loop
+        MOV     R5, R4
+        AND     R5, #0xFF ; Y = current Y
+        LSR     R4, R4, #8 ; X = current X
+        MOV R8, #1
+		NOP
+        B       dfs_sol_rloop
+found_goal
+        POP    {R0-R12, LR}
+        MOV R0, #0
+        BX LR
+        ENDFUNC
+
+        
+;; Function: MAZEGEN_GET_OPEN_NEIGHBOR
+;; Finds the first unvisited neighbor of current cell
+;; Input: R4=X, R5=Y
+;; Output: R0=1 if neighbor found, 0 if none found
+;;         R1=direction (0=N, 1=E, 2=S, 3=W)
+MAZEGEN_GET_OPEN_NEIGHBOR FUNCTION
+        PUSH    {R11, LR}
+        MOV     R11, #0             ; Array of valid neighbors
+        MOV     R10, #0             ; Number of valid neighbors
+        ; Check North neighbor (x, y-1)
+        CMP     R5, #1             ; Must be at least at y=1 to have north wall
+        BLT     sol_check_east
+        
+        ; Check if cell is visited
+        SUB     R7, R5, #1         ; Y = current Y - 1
+        MOV     R6, R4             ; X = current X
+        
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R7, R1         ; Y * width
+        ADD     R1, R1, R6         ; Y * width + X
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R1, [R2]           ; R1 = visited state
+        CMP     R1, #MAZEGEN_PATH
+        BNE     sol_check_east
+        
+        ; North is valid, add to array
+        MOV     R1, #0                  ; North direction
+        MOV     R0, #1
+        ADD     R10, R10, #1            ; Increment valid neighbors count
+        LSL    R11, #4                  ; Shift left to make space for new neighbor
+        ORR    R11, R11, R0
+        LSL    R11, #4                  ; Shift left to make space for new neighbor
+        ORR    R11, R11, R1             ; Add North direction to valid neighbors array
+sol_check_east
+        ; Check East neighbor (x+1, y)
+        ADD     R6, R4, #1         ; X = current X + 1
+        MOV     R7, R5             ; Y = current Y
+        
+        CMP     R6, #MAZE_WIDTH-1  ; Must be within bounds
+        BGE     sol_check_south
+        
+        ; Check if cell is visited
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R7, R1         ; Y * width
+        ADD     R1, R1, R6         ; Y * width + X
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R1, [R2]           ; R1 = visited state
+        CMP     R1, #MAZEGEN_PATH
+        BNE     sol_check_south
+        
+        ; East is valid, add to array
+        MOV     R1, #1             ; East direction
+        MOV     R0, #1
+        ADD     R10, R10, #1             ; Increment valid neighbors count
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R0
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R1             ; Add North direction to valid neighbors array
+sol_check_south
+        ; Check South neighbor (x, y+1)
+        MOV     R6, R4             ; X = current X
+        ADD     R7, R5, #1         ; Y = current Y + 1
+        
+        CMP     R7, #MAZE_HEIGHT-1 ; Must be within bounds
+        BGE     sol_check_west
+        
+        ; Check if cell is visited
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R7, R1         ; Y * width
+        ADD     R1, R1, R6         ; Y * width + X
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R1, [R2]           ; R1 = visited state
+        CMP     R1, #MAZEGEN_PATH
+        BNE     sol_check_west
+        
+        ; South is valid, add to array
+        MOV     R1, #2             ; South direction
+        MOV     R0, #1
+        ADD     R10, R10, #1             ; Increment valid neighbors count
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R0
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R1             ; Add North direction to valid neighbors array
+sol_check_west
+        ; Check West neighbor (x-1, y)
+        SUB     R6, R4, #1         ; X = current X - 1
+        MOV     R7, R5             ; Y = current Y
+        
+        CMP     R6, #0             ; Must be at least at x=0
+        BLT     sol_process_neighbors
+        
+        ; Check if cell is visited
+        MOV     R1, #MAZE_WIDTH
+        MUL     R1, R7, R1         ; Y * width
+        ADD     R1, R1, R6         ; Y * width + X
+        LDR     R2, =MAZE_layout
+        ADD     R2, R2, R1
+        LDRB    R1, [R2]           ; R1 = visited state
+        CMP     R1, #MAZEGEN_PATH
+        BNE     sol_process_neighbors
+        
+        ; West is valid, add to array
+        MOV     R1, #3             ; West direction
+        MOV     R0, #1
+        ADD     R10, R10, #1             ; Increment valid neighbors count
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R0
+        LSL    R11, #4             ; Shift left to make space for new neighbor
+        ORR    R11, R11, R1             ; Add North direction to valid neighbors array
+sol_process_neighbors
+        ; Check if any valid neighbors were found
+        CMP     R10, #0
+        BEQ     sol_no_neighbors
+        
+        UXTB    R1, R11
+        AND    R1,#0xF
+
+sol_neighbor_found
+        MOV     R0, #1             ; Found a neighbor
+        POP     {R11,LR}
+        BX      LR
+        
+sol_no_neighbors
+        MOV     R0, #0             ; No neighbors found
+        POP     {R11,LR}
+        BX      LR
+
+    ENDFUNC
+        LTORG
 
 
 
