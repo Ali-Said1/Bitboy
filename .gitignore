@@ -4,6 +4,5 @@ Objects/
 DebugConfig/
 RTE/
 dino.s
-pongloadingscreen.png
 memdump.bin
-wall.png
+*.png

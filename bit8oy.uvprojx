@@ -420,9 +420,9 @@
               <FilePath>.\MAZE.s</FilePath>
             </File>
             <File>
-              <FileName>MAZE_WALL.s</FileName>
+              <FileName>MAZE_IMG.s</FileName>
               <FileType>2</FileType>
-              <FilePath>.\MAZE_WALL.s</FilePath>
+              <FilePath>.\MAZE_IMG.s</FilePath>
             </File>
           </Files>
         </Group>

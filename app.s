@@ -106,6 +106,8 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_prng_state
     IMPORT MAZE_GENERATE
     IMPORT MAZE_WALL
+    IMPORT MAZE_PATH
+    IMPORT MAZE_KNIGHT
     ;===============================END Maze Imports=================================
 
 
@@ -1612,9 +1614,10 @@ MAZE_COLUMN_LOOP
     MOV R1, #5
     MUL R2, R10, R3 ; Row index multiplied by dimesion
     ADD R1, R1, R2 ; Y coordinate
-    MOV R4, R3 ; Set the width and height for the rectangle
-    MOV R5, #0x88A2 ; Set the foreground color to reddish brown
-    BL DRAW_RECT ; Draw the path block
+    ;MOV R4, R3 ; Set the width and height for the rectangle
+    ; MOV R5, #0x88A2 ; Set the foreground color to reddish brown
+    LDR R3, =MAZE_PATH
+    BL DRAW_IMAGE ; Draw the path block
     B MAZE_COLUMN_CHECK ; Check if we need to continue drawing the maze
 MAZE_WALL_DRAW
     CMP R10, #0

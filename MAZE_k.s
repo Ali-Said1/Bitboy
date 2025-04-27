@@ -1,0 +1,6 @@
+    AREA MYIMAGE, DATA, READONLY
+    EXPORT Knight
+
+
+
+    END

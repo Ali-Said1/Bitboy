@@ -371,8 +371,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>.\MAZE_WALL.s</PathWithFileName>
-      <FilenameWithoutPath>MAZE_WALL.s</FilenameWithoutPath>
+      <PathWithFileName>.\MAZE_IMG.s</PathWithFileName>
+      <FilenameWithoutPath>MAZE_IMG.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
