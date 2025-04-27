@@ -105,6 +105,7 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_pos
     IMPORT MAZE_prng_state
     IMPORT MAZE_GENERATE
+    IMPORT MAZE_WALL
     ;===============================END Maze Imports=================================
 
 
@@ -1583,22 +1584,16 @@ DRAW_GAME2 FUNCTION
     LDR R0, =MAZE_prng_state
     STR R1, [R0] ; Store the current SysTick value in the PRNG state variable
     BL MAZE_GENERATE ; Generate the maze
-    MOV R0, #100
-    MOV R1, #5
-    MOV R3, #0x172
-    MOV R4, #0x136
-    MOV R5, #0x0
-    BL DRAW_RECT ; Draw the maze
     LDR R6, =MAZE_layout
     LDR R7, =MAZE_WIDTH
 	SUB R7, R7, #1
     LDR R8, =MAZE_HEIGHT
 	SUB R8, R8, #1
     LDR R12, =MAZEGEN_PATH
-    MOV R10, #0 ; Initialize the row index
+    MOV R10, #-1 ; Initialize the row index
 MAZE_ROW_LOOP
 	ADD R10, #1
-    MOV R9, #0 ; Reset the column index for each column
+    MOV R9, #-1 ; Reset the column index for each column
 MAZE_COLUMN_LOOP
 	ADD R9, #1
 	ADD R7, R7, #1
@@ -1607,7 +1602,7 @@ MAZE_COLUMN_LOOP
 	ADD R2, R2, R9 ; Calculate the index in the maze layout
     LDRB R11, [R6, R2] ; Load the maze value at the current index
     CMP R11, R12
-    BNE MAZE_COLUMN_CHECK ; If not a path, skip drawing
+    BNE MAZE_WALL_DRAW ; If not a path, draw wall
     ; Calculate the coordinates for drawing the path
     LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
     LSL R3, R3, #1 ; Multiply by 2 for width and height
@@ -1618,8 +1613,26 @@ MAZE_COLUMN_LOOP
     MUL R2, R10, R3 ; Row index multiplied by dimesion
     ADD R1, R1, R2 ; Y coordinate
     MOV R4, R3 ; Set the width and height for the rectangle
-    MOV R5, #0xFFFF ; Set the foreground color to white
+    MOV R5, #0x88A2 ; Set the foreground color to reddish brown
     BL DRAW_RECT ; Draw the path block
+    B MAZE_COLUMN_CHECK ; Check if we need to continue drawing the maze
+MAZE_WALL_DRAW
+    CMP R10, #0
+    CMPEQ R9, #1
+    BEQ MAZE_COLUMN_CHECK ; Skip drawing if it's the second column and first row
+	CMP R10, #30
+	CMPEQ R9, #35
+	BEQ MAZE_COLUMN_CHECK
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MOV R0, #100
+    MUL R2, R9, R3 ; Column index multiplied by dimesion
+    ADD R0, R0, R2 ; X coordinate
+    MOV R1, #5
+    MUL R2, R10, R3 ; Row index multiplied by dimesion
+    ADD R1, R1, R2 ; Y coordinate
+    LDR R3,=MAZE_WALL
+    BL DRAW_IMAGE ; Draw the wall block
 MAZE_COLUMN_CHECK
     CMP R9, R7
     BNE MAZE_COLUMN_LOOP ; Loop through the rows

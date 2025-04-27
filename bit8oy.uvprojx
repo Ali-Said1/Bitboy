@@ -419,6 +419,11 @@
               <FileType>2</FileType>
               <FilePath>.\MAZE.s</FilePath>
             </File>
+            <File>
+              <FileName>MAZE_WALL.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\MAZE_WALL.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
