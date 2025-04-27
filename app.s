@@ -1,5 +1,6 @@
 	AREA    DATA, DATA, READWRITE
     EXPORT sys_time
+	EXPORT ACTIVE_GAME
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
 ACTIVE_GAME       DCB     0       ; 8-bit variable for active game (0 = Main Menu, 1 = Game 1, etc.)
 ;####################################################INTERRUPT VARAIBLES#######################################################
@@ -104,10 +105,20 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_layout
     IMPORT MAZE_pos
     IMPORT MAZE_prng_state
+    IMPORT MAZE_TIMER_MINUTE
+    IMPORT MAZE_TIMER_SECOND
+    IMPORT MAZE_SECOND_TIMER
+    IMPORT MAZE_GAME_STATE
+    IMPORT MAZE_RESET
     IMPORT MAZE_GENERATE
+    IMPORT MAZE_LOGO
     IMPORT MAZE_WALL
     IMPORT MAZE_PATH
     IMPORT MAZE_KNIGHT
+    IMPORT MAZE_MOVE_DOWN
+    IMPORT MAZE_MOVE_LEFT
+    IMPORT MAZE_MOVE_RIGHT
+    IMPORT MAZE_MOVE_UP
     ;===============================END Maze Imports=================================
 
 
@@ -324,20 +335,6 @@ DELAY_MS_LOOP
         ;   R3 = address of glyph data (width, height, then row masks)
         ;   R4 = foreground color (16-bit RGB565)
         ;   R5 = background color (16-bit RGB565)
-        ;
-        ; Requires implemented subroutines:
-        ;   TFT_COMMAND_WRITE  (R2 = command)
-        ;   TFT_DATA_WRITE     (R2 = data byte)
-        ;
-        ; Registers used / preserved:
-        ;   R0-R5 = inputs (R4/R5 preserved)
-        ;   R6 = width (preserved)
-        ;   R7 = height (preserved)
-        ;   R8 = row mask (preserved)
-        ;   R9 = bit mask (preserved)
-        ;   R10 = column counter (preserved)
-        ;   R11 = row counter (preserved)
-        ;   LR = return address (preserved)
         ;========================================================================
 
 DRAW_CHAR FUNCTION
@@ -745,7 +742,7 @@ DRAW_MENU FUNCTION
     MOV R0, #45
     MOV R1, #60
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
+    LDR R3, =MAZE_LOGO
     MOV R0, #190
     MOV R1, #60
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
@@ -1579,6 +1576,10 @@ DRAW_FULL_BATS FUNCTION
 
 DRAW_GAME2 FUNCTION
     PUSH {R0-R11, LR}
+    MOV R0, #0x00
+    MOV R1, #5
+    LDR R3, =MAZE_LOGO
+    BL DRAW_IMAGE ; Draw the logo
     LDR R0, =SysTick_BASE
     LDR R1, =SysTick_CURRENT_VALUE_OFFSET
     ADD R0, R0, R1
@@ -1591,7 +1592,7 @@ DRAW_GAME2 FUNCTION
 	SUB R7, R7, #1
     LDR R8, =MAZE_HEIGHT
 	SUB R8, R8, #1
-    LDR R12, =MAZEGEN_PATH
+    LDR R12, =MAZEGEN_WALL
     MOV R10, #-1 ; Initialize the row index
 MAZE_ROW_LOOP
 	ADD R10, #1
@@ -1604,7 +1605,7 @@ MAZE_COLUMN_LOOP
 	ADD R2, R2, R9 ; Calculate the index in the maze layout
     LDRB R11, [R6, R2] ; Load the maze value at the current index
     CMP R11, R12
-    BNE MAZE_WALL_DRAW ; If not a path, draw wall
+    BEQ MAZE_WALL_DRAW ; If not a path, draw wall
     ; Calculate the coordinates for drawing the path
     LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
     LSL R3, R3, #1 ; Multiply by 2 for width and height
@@ -1641,7 +1642,254 @@ MAZE_COLUMN_CHECK
     BNE MAZE_COLUMN_LOOP ; Loop through the rows
     CMP R10, R8
     BNE MAZE_ROW_LOOP
+
+    ; Draw the player
+    BL DRAW_MAZE_PLAYER ; Draw the player block
     POP {R0-R11, LR}
+    BX LR
+    ENDFUNC
+    LTORG
+
+DRAW_MAZE_PLAYER FUNCTION
+    PUSH {R0-R3, LR}
+    LDR R2, =MAZE_pos
+    LDR R2, [R2] ; Load the player position
+    LSR R0, R2, #8 ; Extract the X coordinate
+    AND R1, R2, #0x00FF
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MUL R2, R0, R3 ; Column index multiplied by dimesion
+    MOV R0, #100
+    ADD R0, R0, R2 ; X coordinate
+    MUL R2, R1, R3 ; Row index multiplied by dimesion
+    MOV R1, #5
+    ADD R1, R1, R2 ; Y coordinate
+    LDR R3 , =MAZE_KNIGHT
+    BL DRAW_IMAGE ; Draw the player block
+    POP {R0-R3, LR}
+    BX LR
+    ENDFUNC
+DRAW_MAZE_PATH_BLOCK FUNCTION
+    PUSH {R0-R3, LR}
+    LDR R2, =MAZE_pos
+    LDR R2, [R2] ; Load the player position
+    LSR R0, R2, #8 ; Extract the X coordinate
+    AND R1, R2, #0x00FF
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MUL R2, R0, R3 ; Column index multiplied by dimesion
+    MOV R0, #100
+    ADD R0, R0, R2 ; X coordinate
+    MUL R2, R1, R3 ; Row index multiplied by dimesion
+    MOV R1, #5
+    ADD R1, R1, R2 ; Y coordinate
+    LDR R3 , =MAZE_PATH
+    BL DRAW_IMAGE ; Draw the player block
+    POP {R0-R3, LR}
+    BX LR
+    ENDFUNC
+    LTORG
+
+GAME2_UPDATE_TIME FUNCTION
+    PUSH {R0-R6, LR}
+    MOV R0, #16
+    MOV R1, #200
+    LDR R3, =char_48 ; 0
+    MOV R4, #0xFFE0 ; Set the foreground color to yellow
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #32
+    LDR R6, =MAZE_TIMER_MINUTE
+    LDRB R2, [R6]
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2 ; Add the minute value to the ASCII code for '0'
+    BL DRAW_CHAR ; Draw the minute value
+    MOV R0, #52
+    LDR R6, =MAZE_TIMER_SECOND
+    LDRB R2, [R6]
+    MOV R7, #10
+    UDIV R2, R2, R7 ; Divide the second value by 10
+    LDR R3, =char_48
+    MOV R7, #40
+    MUL R2, R2, R7
+    ADD R3, R3, R2 ; Add the second value to the ASCII code for '0'
+    BL DRAW_CHAR ; Draw the tens digit of the second value
+    MOV R0, #68
+    LDR R6, =MAZE_TIMER_SECOND
+    LDRB R2, [R6]
+    MOV R7, #10
+    UDIV R6, R2, R7 ; Divide the second value by 10
+    MUL R6, R6, R7 ; Multiply the quotient by 10
+    SUB R2, R2, R6 ; Subtract the tens digit from the second value
+    LDR R3, =char_48
+    MOV R7, #40
+    MUL R2, R2, R7
+    ADD R3, R3, R2 ; Add the second value to the ASCII code for '0'
+    BL DRAW_CHAR ; Draw the units digit of the second value
+    MOV R0, #46
+    MOV R1, #202
+    MOV R3, #4
+    MOV R4, #4
+    MOV R5, #0xFFE0 ; Set the foreground color to yellow
+    BL DRAW_RECT ; Draw the rectangle for the timer
+    MOV R0, #46
+    MOV R1, #210
+    MOV R3, #4
+    MOV R4, #4
+    MOV R5, #0xFFE0 ; Set the foreground color to yellow
+    BL DRAW_RECT ; Draw the rectangle for the timer
+    POP {R0-R6, LR}
+    BX LR
+    ENDFUNC
+GAME2_LOST FUNCTION
+    PUSH {R0-R12, LR}
+    MOV R0, #100
+    MOV R1, #5
+    LDR R5, =MAZE_BLOCK_DIM
+    LSL R5, R5, #1 ; Multiply by 2 for width and height
+    LDR R3, =MAZE_WIDTH
+    MUL R3, R3, R5 ; Total width of the maze
+    LDR R4,=MAZE_HEIGHT
+    MUL R4, R4, R5 ; Total height of the maze
+    MOV R5, #0xF800 ; Set the foreground color to red
+    BL DRAW_RECT ; Draw the rectangle for the timer
+    MOV R0, #16
+    MOV R1, #200
+    LDR R3, =char_48 ; 0
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #32
+    MOV R1, #200
+    LDR R3, =char_48 ; 0
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #52
+    MOV R1, #200
+    LDR R3, =char_48 ; 0
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #68
+    MOV R1, #200
+    LDR R3, =char_48 ; 0
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #46
+    MOV R1, #202
+    MOV R3, #4
+    MOV R4, #4
+    MOV R5, #0xF800 ; Set the foreground color to red
+    BL DRAW_RECT ; Draw the rectangle for the timer
+    MOV R0, #46
+    MOV R1, #210
+    MOV R3, #4
+    MOV R4, #4
+    MOV R5, #0xF800 ; Set the foreground color to red
+    BL DRAW_RECT ; Draw the rectangle for the timer
+    ; Type "TOO SLOW" on the screen
+    MOV R0, #26
+    MOV R1, #134
+    LDR R3, =char_84 ; T
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #42
+    MOV R1, #134
+    LDR R3, =char_79 ; O
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #58
+    MOV R1, #134
+    LDR R3, =char_79 ; O
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #18
+    MOV R1, #150
+    LDR R3, =char_83 ; S
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #34
+    MOV R1, #150
+    LDR R3, =char_76 ; L
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #50
+    MOV R1, #150
+    LDR R3, =char_79 ; O
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #66
+    MOV R1, #150
+    LDR R3, =char_87 ; W
+    MOV R4, #0xF800 ; Set the foreground color to red
+    MOV R5, #0x0
+    BL DRAW_CHAR
+
+    LDR R6, =MAZE_layout
+    LDR R7, =MAZE_WIDTH
+	SUB R7, R7, #1
+    LDR R8, =MAZE_HEIGHT
+	SUB R8, R8, #1
+    LDR R12, =MAZEGEN_PATH_SOL
+    MOV R10, #-1 ; Initialize the row index
+MAZE_SOL_ROW_LOOP
+	ADD R10, #1
+    MOV R9, #-1 ; Reset the column index for each column
+MAZE_SOL_COLUMN_LOOP
+	ADD R9, #1
+	ADD R7, R7, #1
+    MUL R2, R10, R7
+    SUB R7, R7, #1
+	ADD R2, R2, R9 ; Calculate the index in the maze layout
+    LDRB R11, [R6, R2] ; Load the maze value at the current index
+    CMP R11, R12
+    BNE MAZE_SOL_COLUMN_CHECK ; If not a path, skip drawing
+    ; Calculate the coordinates for drawing the path
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MOV R0, #100
+    MUL R2, R9, R3 ; Column index multiplied by dimesion
+    ADD R0, R0, R2 ; X coordinate
+    MOV R1, #5
+    MUL R2, R10, R3 ; Row index multiplied by dimesion
+    ADD R1, R1, R2 ; Y coordinate
+    MOV R4, R3 ; Set the width and height for the rectangle
+    MOV R5, #0xF81F ; Set the foreground color to magenta for sol
+    BL DRAW_RECT ; Draw the solution block
+MAZE_SOL_COLUMN_CHECK
+    CMP R9, R7
+    BNE MAZE_SOL_COLUMN_LOOP ; Loop through the rows
+    CMP R10, R8
+    BNE MAZE_SOL_ROW_LOOP
+
+; Draw the player last position as yellow
+
+    LDR R2, =MAZE_pos
+    LDR R2, [R2] ; Load the player position
+    LSR R0, R2, #8 ; Extract the X coordinate
+    AND R1, R2, #0x00FF
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MUL R2, R0, R3 ; Column index multiplied by dimesion
+    MOV R0, #100
+    ADD R0, R0, R2 ; X coordinate
+    MUL R2, R1, R3 ; Row index multiplied by dimesion
+    MOV R1, #5
+    ADD R1, R1, R2 ; Y coordinate
+   MOV R4, R3 ; Set the width and height for the rectangle
+    MOV R5, #0xFFE0 ; Set the foreground color to yellow
+    BL DRAW_RECT ; Draw the player block
+    POP {R0-R12, LR}
     BX LR
     ENDFUNC
     LTORG
@@ -1730,7 +1978,7 @@ TFT_DATA_WRITE PROC
     POP {R0-R4, LR}
     BX LR
     ENDP
-
+    LTORG
 TFT_INIT FUNCTION
     PUSH {R0-R1, R5, lr}
     LDR R0, =GPIOA_BASE
@@ -1819,6 +2067,8 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     BEQ MENU_INT0_HANDLER
     CMP R11, #1
     BEQ GAME1_INT0_HANDLER
+    CMP R11, #2
+    BEQ GAME2_INT0_HANDLER
 	B skip_toggle
 
 ; ##########Start Main Menu Handler##########
@@ -1880,6 +2130,17 @@ GAME1_INT0_HANDLER
     BL DRAW_FULL_BATS
     B skip_toggle
 ; ##########END Game1 Handler##########
+; ##########Start Game2 Handler##########
+GAME2_INT0_HANDLER
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #0
+    BNE skip_toggle
+    BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
+    BL MAZE_MOVE_RIGHT
+    BL DRAW_MAZE_PLAYER ; Draw the player block
+    B skip_toggle
+; ##########END Game2 Handler##########
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -1910,6 +2171,8 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     BEQ MENU_INT1_HANDLER
     CMP R11, #1
     BEQ GAME1_INT1_HANDLER
+    CMP R11, #2
+    BEQ GAME2_INT1_HANDLER
 	B skip_toggle1
     ; ##########Start Main Menu Handler##########
 MENU_INT1_HANDLER
@@ -1976,6 +2239,18 @@ GAME1_INT1_HANDLER
     BL FILL_SCREEN
     BL DRAW_FULL_BATS
     B skip_toggle
+; ##########END Game1 Handler##########
+; ##########Start Game2 Handler##########
+GAME2_INT1_HANDLER
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #0
+    BNE skip_toggle1
+    BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
+    BL MAZE_MOVE_LEFT
+    BL DRAW_MAZE_PLAYER ; Draw the player block
+    B skip_toggle1
+; ##########END Game2 Handler##########
 skip_toggle1
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2006,6 +2281,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     BEQ MENU_INT2_HANDLER
     CMP R11, #1
     BEQ GAME1_INT2_HANDLER
+    CMP R11, #2
+    BEQ GAME2_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -2024,12 +2301,24 @@ RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
 RESET_MAZE_LBL
+    BL MAZE_RESET ; Reset the game
     BL DRAW_GAME2 ; Draw the maze
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
 
     B skip_toggle2
+; ##########Start Game2 Handler##########
+GAME2_INT2_HANDLER
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #0
+    BNE skip_toggle2
+    BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
+    BL MAZE_MOVE_UP
+    BL DRAW_MAZE_PLAYER ; Draw the player block
+    B skip_toggle2
+; ##########END Game2 Handler##########
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2054,6 +2343,22 @@ EXTI3_IRQHandler PROC ; Down button handler
 	ldr r4, =btn4_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    LDR R11, =ACTIVE_GAME ; Load the active game variable address
+	LDRB R11, [R11]
+    CMP R11, #2
+    BEQ GAME2_INT3_HANDLER
+    B skip_toggle3
+; ##########Start Game2 Handler##########
+GAME2_INT3_HANDLER
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #0
+    BNE skip_toggle3
+    BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
+    BL MAZE_MOVE_DOWN
+    BL DRAW_MAZE_PLAYER ; Draw the player block
+    B skip_toggle3
+; ##########END Game2 Handler##########
 skip_toggle3
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2064,6 +2369,52 @@ SysTick_Handler PROC
 	LDR     R1, [R0]            ; Load current value of my_variable
 	ADD     R1, R1, #1          ; Increment value by 1
 	STR     R1, [R0]            ; Store updated value back to my_variable
+    LDR     R0, =ACTIVE_GAME ; Load the active game variable address
+    LDRB    R11, [R0] ; Load the active game variable value
+    CMP     R11, #2
+    BEQ     GAME2_SYSTICK_HANDLER
+    B SYSTICK_END
+GAME2_SYSTICK_HANDLER
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0] ; Load the game state
+    CMP R1, #2 ; Check if the game is lost
+    BEQ SYSTICK_END ; If lost, skip the timer decrement
+    LDR R0, =MAZE_SECOND_TIMER
+    LDRH R1, [R0] ; Load the second timer value
+    CMP R1, #0
+    BEQ GAME2_DECREMENT_TIMER
+    SUB R1, R1, #1 ; Decrement the second timer value
+    STRH R1, [R0] ; Store the updated value back to the second timer
+    B SYSTICK_END
+GAME2_DECREMENT_TIMER
+    BL GAME2_UPDATE_TIME
+    MOV R1, #0x3E7
+    STRH R1, [R0] ; Reset the second timer to 999 (0x3E7)
+    LDR R0, =MAZE_TIMER_SECOND
+    LDRB R1, [R0] ; Load the timer value
+    CMP R1, #0
+    BEQ GAME2_DECREMENT_MINUTE
+    SUB R1, R1, #1 ; Decrement the timer value
+    STRB R1, [R0] ; Store the updated value back to the timer
+    B SYSTICK_END
+GAME2_DECREMENT_MINUTE
+    BL GAME2_UPDATE_TIME
+    MOV R1, #59
+    STRB R1, [R0] ; Reset the timer to 60 (1 minute)
+    LDR R0, =MAZE_TIMER_MINUTE
+    LDRB R1, [R0] ; Load the minute value
+    CMP R1, #0
+    BEQ GAME2_LOSE
+    SUB R1, R1, #1 ; Decrement the minute value
+    STRB R1, [R0] ; Store the updated value back to the minute
+    B SYSTICK_END
+GAME2_LOSE
+    LDR R0, =MAZE_GAME_STATE
+    MOV R1, #2 ; Set the game state to lost
+    STRB R1, [R0] ; Store the updated value back to the game state
+    BL GAME2_LOST ; Call the game lost function
+    B SYSTICK_END
+SYSTICK_END
 	POP     {R0, R1,LR}            ; Restore registers
 	bx lr
 	ENDP
