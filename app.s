@@ -1,6 +1,7 @@
 	AREA    DATA, DATA, READWRITE
     EXPORT sys_time
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
+ACTIVE_GAME       DCB     0       ; 8-bit variable for active game (0 = Main Menu, 1 = Game 1, etc.)
 ;####################################################INTERRUPT VARAIBLES#######################################################
 btn1_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn2_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
@@ -20,10 +21,10 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 	;|--|  STM32F103C8T6  |--|  ARM Cortex-M3  |--|  ARM Assembly   |--|
     ;|--| =================Important Definitions:================== |--|
     ;|--| ============ Delay in ms, use R5 as counter ============= |--|
-    ;|--| ================== Active Game => R11 =================== |--|
-    ;|--| =============== R11 <== 0 == Main Menu ================== |--|
-    ;|--| =============== R11 <== 1 == Game 1... ================== |--|
-    ;|--| ================== Game Over => R11 ===================== |--|
+    ;|--| ================== Active Game => VAR =================== |--|
+    ;|--| ===================== 0 == Main Menu ==================== |--|
+    ;|--| ===================== 1 == Game 1... ==================== |--|
+    ;|--| ===================== Game Over ========================= |--|
     ;--===============================================================--
     INCLUDE hal.s
     IMPORT gamelogo
@@ -106,8 +107,12 @@ __main FUNCTION
 	BL RESET_MENU
     BL PONG_RESET
 	BL DRAW_MENU
+    LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
 	MOV R11, #0
+    STRB R11, [R0]
 MAIN_LOOP
+    LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
+    LDRB R11, [R0]
     CMP		 R11, #0 ; Check if R11 is 0 (Main Menu)
     BEQ END_MAINLOOP
 
@@ -1554,6 +1559,57 @@ DRAW_FULL_BATS FUNCTION
     POP {R0-R5, LR}
     BX LR
     ENDFUNC
+
+DRAW_GAME2 FUNCTION
+    PUSH {R0-R11, LR}
+    LDR R0, =SysTick_BASE
+    LDR R1, =SysTick_CURRENT_VALUE_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LDR R0, =MAZE_prng_state
+    STR R1, [R0] ; Store the current SysTick value in the PRNG state variable
+    BL MAZE_GENERATE ; Generate the maze
+    MOV R0, #100
+    MOV R1, #5
+    MOV R3, #0x172
+    MOV R4, #0x136
+    MOV R5, #0x0
+    BL DRAW_RECT ; Draw the maze
+    MOV R5, #0xFFFF ; Set the foreground color to white
+    LDR R6, =MAZE_layout
+    LDR R7, =MAZE_WIDTH
+    SUB R7, R7 , #1
+    LDR R8, =MAZE_HEIGHT
+    SUB R8, R8 , #1
+    ; LDR R12, =MAZEGEN_PATH
+    MOV R10, #0 ; Initialize the row index
+MAZE_ROW_LOOP
+    MOV R9, #0 ; Reset the column index for each column
+MAZE_COLUMN_LOOP
+    MUL R2, R10, R7
+    ADD R2, R2, R9 ; Calculate the index in the maze layout
+    LDRB R11, [R6, R2] ; Load the maze value at the current index
+    CMP R11, #MAZEGEN_PATH
+    BNE MAZE_COLUMN_CHECK ; If not a path, skip drawing
+    ; Calculate the coordinates for drawing the path
+    MOV R3, #MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MOV R0, #100
+    MUL R2, R9, R3 ; Column index multiplied by dimesion
+    ADD R0, R0, R2 ; X coordinate
+    MOV R1, #5
+    MUL R2, R10, R3 ; Row index multiplied by dimesion
+    ADD R1, R1, R2 ; Y coordinate
+    MOV R4, R3 ; Set the width and height for the rectangle
+    BL DRAW_RECT ; Draw the path block
+MAZE_COLUMN_CHECK
+    CMP R9, R7
+    BNE MAZE_COLUMN_LOOP ; Loop through the rows
+    CMP R10, R8
+    BNE MAZE_ROW_LOOP
+    POP {R0-R11, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -1722,6 +1778,8 @@ EXTI0_IRQHandler PROC ; Right Button Handler
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    LDR R0, =ACTIVE_GAME ; Load the active game variable address
+    LDRB R11, [R0] ; Load the active game variable value
     CMP R11, #0
     BEQ MENU_INT0_HANDLER
     CMP R11, #1
@@ -1811,6 +1869,8 @@ EXTI1_IRQHandler PROC ; Left Button Handler
 	ldr r4, =btn2_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    LDR R0, =ACTIVE_GAME ; Load the active game variable address
+    LDRB R11, [R0] ; Load the active game variable value
     CMP R11, #0x0
     BEQ MENU_INT1_HANDLER
     CMP R11, #1
@@ -1905,6 +1965,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
 	ldr r4, =btn3_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
+    LDR R0, =ACTIVE_GAME ; Load the active game variable address
+    LDRB R11, [R0] ; Load the active game variable value
     CMP R11, #0
     BEQ MENU_INT2_HANDLER
     CMP R11, #1
@@ -1914,6 +1976,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
 MENU_INT2_HANDLER
     LDR R1, =HOVERED_GAME ; Load Hovered Game Number
     LDR R11, [R1] ; Store game number in R11 for context switching
+    LDR R0, =ACTIVE_GAME ; Load the active game variable address
+    STRB R11, [R0] ; Set the active game variable to the hovered game
     BL RESET_MENU ; Reset the menu before switching games
 	MOV R0, #0x0000
 	BL FILL_SCREEN
