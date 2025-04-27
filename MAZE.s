@@ -81,17 +81,23 @@ init_maze_loop
         BNE     init_maze_loop
         
         
-        
+        MOV     R5, #1         ; Starting Y
         ; Start at position (1,1) (to ensure there's a wall border)
         MOV     R4, #1          ; Starting X
-        MOV     R5, #1          ; Starting Y
-        
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
+        ; R4 XXYY
+
         BL     dfs_loop
         B       generation_complete
         
-; R4 = X, R5 = Y of current cell
+
 dfs_loop
-        PUSH {R4,R5, LR}
+        PUSH {R4, LR}
+        ; R4 = X, R5 = Y of current cell
+        MOV     R5, R4
+        AND     R5, #0xFF ; Y = current Y
+        LSR     R4, R4, #8 ; X = current X
 dfs_rloop
         ; Mark start position as path
 
@@ -185,16 +191,22 @@ process_west
 
         
 backtrack
-        POP {R4,R5, LR}
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
+        POP {R4, LR}
         BX      LR
 next
+        LSL     R4, R4, #8
+        ADD     R4, R5          ; Starting Y
         BL       dfs_loop
+        MOV     R5, R4
+        AND     R5, #0xFF ; Y = current Y
+        LSR     R4, R4, #8 ; X = current X
         B       dfs_rloop
 generation_complete
         POP    {R0-R12, LR}
 		MOV R0, #0
         BX LR
-
 
 
 
