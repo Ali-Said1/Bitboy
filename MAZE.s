@@ -15,14 +15,24 @@ MAZE_BLOCK_DIM      EQU 5       ; Half block size in pixels
 		EXPORT MAZE_layout
 		EXPORT MAZE_pos
 		EXPORT MAZE_prng_state
-
+                EXPORT MAZE_TIMER_MINUTE
+                EXPORT MAZE_TIMER_SECOND
+                EXPORT MAZE_SECOND_TIMER
+                EXPORT MAZE_GAME_STATE
 MAZE_layout      SPACE MAZE_WIDTH*MAZE_HEIGHT   ; Maze layout (0=path, 1=wall)
 MAZE_pos      DCW 0x0000                        ; XXYY
 MAZE_prng_state
     DCD     0x12                          ; Initial seed for the PRNG
 MAZE_stack SPACE 2*MAZE_WIDTH*MAZE_HEIGHT
 MAZE_stack_ptr  DCW	0x0
+
+MAZE_TIMER_SECOND DWB 0
+MAZE_TIMER_MINUTE DWB 5
+MAZE_SECOND_TIMER DCW 0x3E8
+
+MAZE_GAME_STATE DCB 0x0 ; 0 = playing, 1 = win, 2 = lose
         AREA MAZEGENCODE, CODE, READONLY
+        EXPORT MAZE_RESET
         EXPORT MAZE_GENERATE
         EXPORT MAZE_MOVE_DOWN
         EXPORT MAZE_MOVE_LEFT
@@ -70,15 +80,36 @@ get_random  FUNCTION
     POP     {R1-R5, LR}        ; Restore R4, R5, and return
     BX LR
     ENDFUNC
+MAZE_RESET FUNCTION
+        PUSH    {R0-R1, LR}
+        LDR     R0, =MAZE_pos
+        MOV     R1, #0x0101
+        STRH    R1, [R0]
+        LDR R0, =MAZE_stack_ptr
+        MOV R1, #0
+        STRH R1, [R0]
+        LDR R0, =MAZE_TIMER_MINUTE
+        MOV R1, #5
+        STRB R1, [R0]
+        LDR R0, =MAZE_TIMER_SECOND
+        MOV R1, #00
+        STRB R1, [R0]
+        LDR R0, =MAZE_GAME_STATE
+        MOV R1, #0
+        STRB R1, [R0]
+        LDR R0, =MAZE_SECOND_TIMER
+        MOV R1, #0x3E7
+        STRH R1, [R0]
+        POP    {R0-R1, LR}
+        BX LR
+        ENDFUNC
 ; Function: MAZE_GENERATE
 ; Generates a random maze using Depth-First Search with backtracking
 ; This replaces the current maze layout with a randomly generated one
 MAZE_GENERATE FUNCTION
         PUSH    {R0-R12, LR}
         ;; Initialize the maze player position to (1,1)
-        LDR     R0, =MAZE_pos
-        MOV     R1, #0x0101
-        STRH    R1, [R0]
+        
         ; Initialize maze with all walls
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH*MAZE_HEIGHT
