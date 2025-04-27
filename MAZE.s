@@ -71,9 +71,6 @@ get_random  FUNCTION
 ; This replaces the current maze layout with a randomly generated one
 MAZE_GENERATE FUNCTION
         PUSH    {R0-R12, LR}
-        LDR R0, =MAZE_stack_ptr
-		LDR	R1, =MAZE_stack
-		STR R1, [R0]
         ; Initialize maze with all walls
         LDR     R0, =MAZE_layout
         MOV     R1, #MAZE_WIDTH*MAZE_HEIGHT
@@ -96,14 +93,14 @@ init_maze_loop
         
 
 dfs_loop
-		PUSH {LR}
-		LDR R1, =MAZE_stack
-		LDR R3, =MAZE_stack_ptr
-		LDRH R2, [R3]
-		ADD R1, R2
-		STRH R4, [R1]
-		ADD R2, #2
-		STRH R2, [R3]
+        PUSH {LR}
+        LDR R1, =MAZE_stack
+        LDR R3, =MAZE_stack_ptr
+        LDRH R2, [R3]
+        ADD R1, R2
+        STRH R4, [R1]
+        ADD R2, #2
+        STRH R2, [R3]
         
         ; R4 = X, R5 = Y of current cell
         MOV     R5, R4
@@ -205,13 +202,13 @@ backtrack
         LSL     R4, R4, #8
         ADD     R4, R5          ; Starting Y
         POP {LR}
-		LDR R1, =MAZE_stack
-		LDR R3, =MAZE_stack_ptr
-		LDRH R2, [R3]
-		SUB R2, #2
-		STRH R2, [R3]
-		ADD R1, R2
-		LDRH R4, [R1]
+        LDR R1, =MAZE_stack
+        LDR R3, =MAZE_stack_ptr
+        LDRH R2, [R3]
+        SUB R2, #2
+        STRH R2, [R3]
+        ADD R1, R2
+        LDRH R4, [R1]
 		
 		
         BX      LR
