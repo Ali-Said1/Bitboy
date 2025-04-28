@@ -53,7 +53,7 @@ maze_check_win_condition FUNCTION ; Idk if this might cause naming problems with
         LDR     R0, =MAZE_GAME_STATE
         MOV     R1, #0
         LDR     R4, =MAZE_pos
-        LDRB    R4, [R4]
+        LDRH    R4, [R4]
         MOV     R5, R4
         AND     R5, #0xFF ; R5 = current Y
         LSR     R4, R4, #8 ; R4 = current X
