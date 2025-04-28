@@ -45,6 +45,26 @@ MAZE_GAME_STATE DCB 0x0 ; 0 = playing, 1 = win, 2 = lose
 
 
 
+; maze_check_win_condition
+; I don't need to explain
+; Outputs: Changes memory byte to indicate won state. (01)
+maze_check_win_condition FUNCTION ; Idk if this might cause naming problems with PONG.s
+        PUSH {R0, R1, R4, R5, LR}
+        LDR     R0, =MAZE_GAME_STATE
+        MOV     R1, #0
+        LDR     R4, =MAZE_pos
+        LDRB    R4, [R4]
+        MOV     R5, R4
+        AND     R5, #0xFF ; R5 = current Y
+        LSR     R4, R4, #8 ; R4 = current X
+        CMP     R4, #MAZE_WIDTH - 2
+        CMPEQ   R5, #MAZE_HEIGHT - 2
+        MOVEQ   R1, #1
+        STRBEQ  R1, [R0]
+        POP {R0, R1, R4, R5, LR}
+        BX LR
+        ENDFUNC
+
 ; Function: get_random
 ; Inputs: R3 = max - 1
 ; Outputs: R0 = [0, R3 -1]
@@ -128,6 +148,7 @@ init_maze_loop
         
         MOV     R5, #1         ; Starting Y
         ; Start at position (1,1) (to ensure there's a wall border)
+        ; Pack XXYY in R4
         MOV     R4, #1          ; Starting X
         LSL     R4, R4, #8
         ADD     R4, R5          ; Starting Y
@@ -139,6 +160,7 @@ init_maze_loop
 
 dfs_loop
         PUSH {LR}
+        ; Manual Stack Push
         LDR R1, =MAZE_stack
         LDR R3, =MAZE_stack_ptr
         LDRH R2, [R3]
@@ -147,6 +169,7 @@ dfs_loop
         ADD R2, #2
         STRH R2, [R3]
         
+        ; Un-Pack XXYY from R4
         ; R4 = X, R5 = Y of current cell
         MOV     R5, R4
         AND     R5, #0xFF ; Y = current Y
@@ -244,9 +267,11 @@ process_west
 
         
 backtrack
+        ; Pack XXYY in R4
         LSL     R4, R4, #8
         ADD     R4, R5          ; Starting Y
         POP {LR}
+        ; Manual Stack Pop
         LDR R1, =MAZE_stack
         LDR R3, =MAZE_stack_ptr
         LDRH R2, [R3]
@@ -258,12 +283,14 @@ backtrack
 		
         BX      LR
 next
+        ; Pack XXYY in R4
         LSL     R4, R4, #8
-        ADD     R4, R5          ; Starting Y
+        ADD     R4, R5
         BL       dfs_loop
+        ; Un-Pack XXYY from R4
         MOV     R5, R4
-        AND     R5, #0xFF ; Y = current Y
-        LSR     R4, R4, #8 ; X = current X
+        AND     R5, #0xFF ; R5 = current Y
+        LSR     R4, R4, #8 ; R4 = current X
         B       dfs_rloop
 generation_complete
         POP    {R0-R12, LR}
@@ -756,6 +783,7 @@ MAZE_MOVE_LEFT FUNCTION
         LSL     R4, R4, #8          ; newX << 8
         ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
         STRH     R4, [R0]
+        BL maze_check_win_condition
 ret_move_left
         POP     {R0-R5, LR}
         BX      LR
@@ -783,6 +811,7 @@ MAZE_MOVE_RIGHT FUNCTION
         LSL     R4, R4, #8          ; newX << 8
         ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
         STRH     R4, [R0]
+        BL maze_check_win_condition
 ret_move_right
         POP     {R0-R5, LR}
         BX      LR
@@ -810,6 +839,7 @@ MAZE_MOVE_UP FUNCTION
         LSL     R4, R4, #8          ; X in high byte
         ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
         STRH     R4, [R0]
+        BL maze_check_win_condition
 ret_move_up
         POP     {R0-R5, LR}
         BX      LR
@@ -837,6 +867,7 @@ MAZE_MOVE_DOWN FUNCTION
         LSL     R4, R4, #8          ; X << 8
         ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
         STRH     R4, [R0]
+        BL maze_check_win_condition
 ret_move_down
         POP     {R0-R5, LR}
         BX      LR
