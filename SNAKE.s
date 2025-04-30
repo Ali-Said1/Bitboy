@@ -5,7 +5,7 @@ color_red   EQU 0xF800     ; RGB565 color constants
 color_green EQU 0x07D0
 color_blue  EQU 0x001F
 snake_size  EQU 0x000A     ; Size of each snake segment
-max_length  EQU 100        ; Maximum snake length
+max_length  EQU 20        ; Maximum snake length
 dirRight    EQU 0
 dirLeft     EQU 1
 dirUp       EQU 2
@@ -20,7 +20,6 @@ __Vectors
 
         AREA    DATA, DATA, READWRITE
         EXPORT SNAKE
-        EXPORT bg_color
         EXPORT snake_head
         EXPORT snake_body
         EXPORT snake_length
@@ -28,19 +27,17 @@ __Vectors
         EXPORT food_pos
         EXPORT score
         EXPORT game_over
-		EXPORT random_seed
 
 SNAKE
-bg_color        DCW 0x0000          ; Black background
-snake_head      DCD 0x00F00078      ; XXXXYYYY initial position   (middle of screen)
-snake_body      SPACE 4*max_length  ; Array to store snake body segments (x,y coordinates (4Bytes) for each)
+food_pos        DCW 0x0909      ; XXYY food position
+snake_head      DCW 0x1414      ; XXYY initial position
+snake_body      SPACE 2*max_length  ; Array to store snake body segments (x,y coordinates (4Bytes) for each)
 snake_length    DCD 0x00000001      ; Initial snake length (just the head)
 snake_direction DCB dirRight        ; Initial direction: right
-food_pos        DCD 0x01900090      ; XXXXYYYY food position
 score           DCB 0x00            ; Current score
 game_over       DCB 0x00            ; Game over flag (0 = playing, 1 = game over)
 last_input      DCB 0x00            ; Last keyboard input
-random_seed     DCD 0x1A2B3C4D  ; Initial seed value
+SNAKE_prng_state    DCB 0x00  ; Initial seed value
 
         AREA CODE, CODE, READONLY
         EXPORT Reset_Handler
@@ -50,15 +47,12 @@ Reset_Handler
         MOV r8, #0                  ; Simulation steps
 
 start
-        ; Initialize game data
-        LDR     R0, =bg_color
-        MOV     R1, #0x0000         ; Black background
-        STRH    R1, [R0]
+
 
         ; Initialize snake head position (middle of screen)
         LDR     R0, =snake_head
-        LDR     R1, =0x00F00078     ; Initial position
-        STR     R1, [R0]
+        LDR     R1, =0x1414     ; Initial position
+        STRH     R1, [R0]
 
         ; Initialize snake length
         LDR     R0, =snake_length
@@ -72,8 +66,8 @@ start
 
         ; Initialize food position
         LDR     R0, =food_pos
-        LDR     R1, =0x01900090     ; Initial food position
-        STR     R1, [R0]
+        LDR     R1, =0x0909
+        STRH     R1, [R0]
 
         ; Initialize score
         LDR     R0, =score
@@ -84,11 +78,11 @@ start
         LDR     R0, =game_over
         MOV     R1, #0              ; Game is running
         STRB    R1, [R0]
-		
-		; Initialize random_seed
-        LDR     R0, =random_seed
-        LDR     R1, =0x1A2B3C4D             
-        STR    R1, [R0]
+                
+                ; Initialize random_seed
+        LDR     R0, =SNAKE_prng_state
+        MOV     R1, #0x12
+        STRB    R1, [R0]
 
         LDR     r0, =SNAKE
         B       game_loop
@@ -96,14 +90,9 @@ start
 game_loop
         ADD     r8, r8, #1          ; Increment simulation step counter
 
-        ; Check if game is over
-        LDR     R0, =game_over
-        LDRB    R1, [R0]
-        CMP     R1, #0
-        BNE     hang                ; branches to the hang if game_over is not 0 (game over)
 
-
-		BL spawn_new_food
+        BL spawn_new_food
+        MOV R3, #0
  ;       ; Process input (when connection not now)
  ;       BL      process_input
  ;
@@ -118,6 +107,25 @@ game_loop
 
 hang
         B       hang                ; End game loop if game is over
+                
+                
+                
+        
+
+GO_UP FUNCTION
+
+    LDR     R2, =snake_direction	;R2 points to snake_direction
+    LDRB    R3, [R2]
+    CMP     R3, #dirDown
+    BEQ     save_direction
+    MOV     R3, #dirUp
+    B       save_direction
+save_direction
+        STRB    R3, [R2]            ; Save the new direction
+        MOV     R1, #0
+        STRB    R1, [R0]            
+
+    ENDFUNC
 
 ; ----------------------------------------------------
 ; process_input: Handle input to change snake direction
@@ -132,7 +140,7 @@ process_input
         LDRB    R3, [R2]
 
         ; Check input and update direction
-		; hna el inputs temporary 'w a d s' (httbdl sa3t el simulation)
+                ; hna el inputs temporary 'w a d s' (httbdl sa3t el simulation)
         ; 'w' = up, 'a' = left, 's' = down, 'd' = right
         
         CMP     R1, #'w'
@@ -166,10 +174,7 @@ not_down
         BEQ     input_done
         MOV     R3, #dirRight
 
-save_direction
-        STRB    R3, [R2]            ; Save the new direction
-        MOV     R1, #0
-        STRB    R1, [R0]            
+
 
 input_done
         POP     {R0-R3, LR}
@@ -390,58 +395,108 @@ increase_score
 ; spawn_new_food: Generate a new random position for food
 ; ----------------------------------------------------
 ; spawn_new_food: Generate a new random food position
-; X in range 0 - 450 (i.e., 0–45 * 10)
-; Y in range 0 - 340 (i.e., 0–34 * 10)
+; X in range 0 - 450 (i.e., 0 45 * 10)
+; Y in range 0 - 340 (i.e., 0 34 * 10)
 spawn_new_food
         PUSH    {R0-R6, LR}
 
-        ; -- Simple random number generation (LCG) --
-        ; Static seed stored in a memory variable
-        LDR     R0, =random_seed
-        LDR     R1, [R0]
-        LDR     R2, =1664525        ; Multiplier
-        MUL     R1, R1, R2
-		MOV    R3, #0xF35F         ; Lower 16 bits of increment
-		MOVT    R3, #0x3C6E         ; Upper 16 bits of increment
-		ADD    R1, R1, R3          ; R2 = R2 + 1013904223 (mod 2^32 via overflow)
-        STR     R1, [R0]            ; Save updated seed
+        MOV R3, #42
+        BL get_random ; [0, 41]
+        ADD R0, #3
+        MOV R6, R0 ; R4 = X
 
-         ; ========== Generate X (mod 46) ==========
-        AND     R2, R1, #0x7F        ; R2 = random & 0x7F ? [0,127]
-        MOV     R3, #46              ; Mod base
-mod_x_loop
-        CMP     R2, R3
-        BLT     mod_x_done
-        SUB     R2, R2, R3
-        B       mod_x_loop
-mod_x_done
-        MOV     R4, R2
-        MOV     R6, #10
-        MUL     R4, R4, R6           ; X = R4 = R2 * 10
+        MOV R3, #26
+        BL get_random ; [0, 25]
+        ADD R0, #3
+        MOV R5, R0 ; R5 = Y
+        LSL R6, #8
+        ORR R6, R5
 
-        ; ========== Generate Y (mod 35) ==========
-        LSR     R1, R1, #8           ; New "random-ish" value
-        AND     R2, R1, #0x7F        ; R2 = random & 0x7F
-        MOV     R3, #35
-mod_y_loop
-        CMP     R2, R3
-        BLT     mod_y_done
-        SUB     R2, R2, R3
-        B       mod_y_loop
-mod_y_done
-        MOV     R5, R2
-        MOV     R6, #10
-        MUL     R5, R5, R6           ; Y = R5 = R2 * 10
+        MOV R3, #0
+food_collision_loop
+        ; Calculate address of current segment
+        LDR 	R8, =snake_head
+        
+        ADD     R8, R3,LSL #1          ; R8 = R3 * 2       
+        LDRH     R8, [R8]
+        ; Compare with current body part position
+        CMP     R8, R6
+        BEQ     food_collision_detected  ; Head collided with body segment
+        
+        ADD     R3, #1          ; Increment loop counter
+        LDR 	R0, =snake_length
+        LDR 	R5, [R0]
 
-        ; Combine X and Y into food position
-        LSL     R6, R4, #16         ; R6 = X << 16
-        ORR     R6, R6, R5          ; R6 = X << 16 | Y
+        CMP     R3, R5              ; Compare with snake length
+        BLT     food_collision_loop ; Continue if not done
+        B     no_collision
 
+
+food_collision_detected
+        B spawn_new_food
+
+no_collision
         ; Store into food_pos
         LDR     R0, =food_pos
-        STR     R6, [R0]
+        STRH     R6, [R0]
 
         POP     {R0-R6, LR}
         BX      LR
-		
+                
 ; ----------------------------------------------------
+
+
+; Function: get_random
+; Inputs: R3 = max - 1
+; Outputs: R0 = [0, R3 -1]
+get_random  FUNCTION
+    PUSH    {R1-R5, LR}        ; Save R4, R5, and LR
+
+    ; Save R3 (range bound)
+    MOV    R5, R3              ; R5 = R3 (preserve R3)
+
+    ; Generate random number
+    ; Load PRNG state
+    LDR     R4, =SNAKE_prng_state     ; R4 = address of prng_state
+    LDR     R0, [R4]            ; R0 = current state
+
+    ; Compute: state = state * 1664525
+    MOV    R1, #0x60D          ; Lower 16 bits of multiplier
+    MOVT    R1, #0x196          ; Upper 16 bits of multiplier
+    MUL    R2, R0, R1          ; R2 = state * 1664525 (low 32 bits)
+
+    ; Add increment: 1013904223 = 0x3C6EF35F
+    MOV    R1, #0xF35F         ; Lower 16 bits of increment
+    MOVT    R1, #0x3C6E         ; Upper 16 bits of increment
+    ADD    R2, R2, R1          ; R2 = R2 + 1013904223 (mod 2^32 via overflow)
+
+    ; Store new state
+    STR     R2, [R4]            ; prng_state = new state
+
+    ; Move result to R0
+    MOV    R0, R2              ; R0 = random number
+
+    UDIV R0,R0, R3
+    MUL  R5, R3, R0   ; Rtemp = Rm Ã— Ra
+    SUB  R0, R2, R5   ; Rd = Rn - Rtemp
+
+
+
+    POP     {R1-R5, LR}        ; Restore R4, R5, and return
+    BX LR
+    ENDFUNC
+    LTORG
+
+
+
+; A % B = C
+; Inputs: R0 = A, R1 = B
+; Output: R2 = C
+MODULO FUNCTION
+        PUSH {R0, R1, LR}
+        MOV  R2, R0             ; R2 = R0
+        UDIV R0, R0, R1         ; R0 = R0 // R1
+        MLS R2, R1, R0, R2      ; R2 = R2 - R1 * R0
+        POP {R0, R1, LR}
+        BX LR
+        ENDFUNC
