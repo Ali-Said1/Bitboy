@@ -1,4 +1,0 @@
-    AREA MYIMAGE, DATA, READONLY
-    EXPORT Mud
-
-    END

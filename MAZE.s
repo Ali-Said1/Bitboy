@@ -42,13 +42,14 @@ MAZE_GAME_STATE DCB 0x0 ; 0 = playing, 1 = win, 2 = lose
         EXPORT MAZE_MOVE_LEFT
         EXPORT MAZE_MOVE_RIGHT
         EXPORT MAZE_MOVE_UP
+        EXPORT MAZE_CHECK_WIN_CONDITION
 
 
 
-; maze_check_win_condition
+; MAZE_CHECK_WIN_CONDITION
 ; I don't need to explain
 ; Outputs: Changes memory byte to indicate won state. (01)
-maze_check_win_condition FUNCTION ; Idk if this might cause naming problems with PONG.s
+MAZE_CHECK_WIN_CONDITION FUNCTION ; Idk if this might cause naming problems with PONG.s
         PUSH {R0, R1, R4, R5, LR}
         LDR     R0, =MAZE_GAME_STATE
         MOV     R1, #0
@@ -93,7 +94,7 @@ get_random  FUNCTION
     STR     R2, [R4]            ; prng_state = new state
 
     ; Move result to R0
-    MOV    R0, R2              ; R0 = random number
+    MOV    R0, R2               ; R0 = random number
 
     UDIV R0,R0, R3
     MUL  R5, R3, R0   ; Rtemp = Rm × Ra
@@ -783,7 +784,7 @@ MAZE_MOVE_LEFT FUNCTION
         LSL     R4, R4, #8          ; newX << 8
         ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
         STRH     R4, [R0]
-        BL maze_check_win_condition
+        BL MAZE_CHECK_WIN_CONDITION
 ret_move_left
         POP     {R0-R5, LR}
         BX      LR
@@ -811,7 +812,7 @@ MAZE_MOVE_RIGHT FUNCTION
         LSL     R4, R4, #8          ; newX << 8
         ORR     R4, R4, R5          ; new pos = (newX << 8) | Y
         STRH     R4, [R0]
-        BL maze_check_win_condition
+        BL MAZE_CHECK_WIN_CONDITION
 ret_move_right
         POP     {R0-R5, LR}
         BX      LR
@@ -839,7 +840,7 @@ MAZE_MOVE_UP FUNCTION
         LSL     R4, R4, #8          ; X in high byte
         ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
         STRH     R4, [R0]
-        BL maze_check_win_condition
+        BL MAZE_CHECK_WIN_CONDITION
 ret_move_up
         POP     {R0-R5, LR}
         BX      LR
@@ -867,7 +868,7 @@ MAZE_MOVE_DOWN FUNCTION
         LSL     R4, R4, #8          ; X << 8
         ORR     R4, R4, R5          ; new pos = (X << 8) | new Y
         STRH     R4, [R0]
-        BL maze_check_win_condition
+        BL MAZE_CHECK_WIN_CONDITION
 ret_move_down
         POP     {R0-R5, LR}
         BX      LR

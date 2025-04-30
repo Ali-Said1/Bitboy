@@ -112,6 +112,7 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_RESET
     IMPORT MAZE_GENERATE
     IMPORT MAZE_SOLVER
+    IMPORT MAZE_CHECK_WIN_CONDITION
     IMPORT MAZE_LOGO
     IMPORT MAZE_WALL
     IMPORT MAZE_PATH
@@ -1747,16 +1748,6 @@ GAME2_UPDATE_TIME FUNCTION
     ENDFUNC
 GAME2_LOST FUNCTION
     PUSH {R0-R12, LR}
-    ; MOV R0, #100
-    ; MOV R1, #5
-    ; LDR R5, =MAZE_BLOCK_DIM
-    ; LSL R5, R5, #1 ; Multiply by 2 for width and height
-    ; LDR R3, =MAZE_WIDTH
-    ; MUL R3, R3, R5 ; Total width of the maze
-    ; LDR R4,=MAZE_HEIGHT
-    ; MUL R4, R4, R5 ; Total height of the maze
-    ; MOV R5, #0xF800 ; Set the foreground color to red
-    ; BL DRAW_RECT ; Draw the rectangle for the timer
     MOV R0, #16
     MOV R1, #200
     LDR R3, =char_48 ; 0
@@ -1898,6 +1889,101 @@ MAZE_SOL_COLUMN_CHECK
     BX LR
     ENDFUNC
     LTORG
+GAME2_WIN FUNCTION
+    PUSH {R0-R12, LR}
+	MOV R0, #0
+	MOV R1, #100
+	MOV R3, #100
+	MOV R4, #220
+	MOV R5, #0x0
+	BL DRAW_RECT
+    ; Type "You Win" on the screen
+    MOV R0, #26
+    MOV R1, #188
+    LDR R3, =char_89 ; Y
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #42
+    MOV R1, #188
+    LDR R3, =char_79 ; O
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #58
+    MOV R1, #188
+    LDR R3, =char_85 ; U
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #26
+    MOV R1, #204
+    LDR R3, =char_87 ; W
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #42
+    MOV R1, #204
+    LDR R3, =char_73 ; I
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #58
+    MOV R1, #204
+    LDR R3, =char_78 ; N
+    MOV R4, #0x07E0 ; Set the foreground color to green
+    MOV R5, #0x0
+    BL DRAW_CHAR
+
+    BL MAZE_SOLVER
+    LDR R6, =MAZE_layout
+    LDR R7, =MAZE_WIDTH
+	SUB R7, R7, #1
+    LDR R8, =MAZE_HEIGHT
+	SUB R8, R8, #1
+    LDR R12, =MAZEGEN_PATH_SOL
+    MOV R10, #-1 ; Initialize the row index
+MAZE_WIN_SOL_ROW_LOOP
+	ADD R10, #1
+    MOV R9, #-1 ; Reset the column index for each column
+MAZE_WIN_SOL_COLUMN_LOOP
+	ADD R9, #1
+	ADD R7, R7, #1
+    MUL R2, R10, R7
+    SUB R7, R7, #1
+	ADD R2, R2, R9 ; Calculate the index in the maze layout
+    CMP R2, #0
+	BEQ MAZE_WIN_DRAW
+	LDRB R11, [R6, R2] ; Load the maze value at the current index
+    CMP R11, R12
+    BEQ MAZE_WIN_SOL_COLUMN_CHECK ; If is a path sol, skip drawing
+	CMP R10, #0
+    CMPEQ R9, #1
+    BEQ MAZE_WIN_SOL_COLUMN_CHECK ; Skip drawing if it's the second column and first row
+	CMP R10, #30
+	CMPEQ R9, #35
+	BEQ MAZE_WIN_SOL_COLUMN_CHECK
+MAZE_WIN_DRAW
+    LDR R3, =MAZE_BLOCK_DIM ; Set the block dimension
+    LSL R3, R3, #1 ; Multiply by 2 for width and height
+    MOV R0, #100
+    MUL R2, R9, R3 ; Column index multiplied by dimesion
+    ADD R0, R0, R2 ; X coordinate
+    MOV R1, #5
+    MUL R2, R10, R3 ; Row index multiplied by dimesion
+    ADD R1, R1, R2 ; Y coordinate
+    MOV R4, R3 ; Set the width and height for the rectangle
+    MOV R5, #0x07E0 ; Set the foreground color to green to border solution
+    BL DRAW_RECT ; Draw the solution block
+MAZE_WIN_SOL_COLUMN_CHECK
+    CMP R9, R7
+    BNE MAZE_WIN_SOL_COLUMN_LOOP ; Loop through the rows
+    CMP R10, R8
+    BNE MAZE_WIN_SOL_ROW_LOOP
+
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -2144,6 +2230,11 @@ GAME2_INT0_HANDLER
     BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
     BL MAZE_MOVE_RIGHT
     BL DRAW_MAZE_PLAYER ; Draw the player block
+    BL MAZE_CHECK_WIN_CONDITION
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #1
+    BLEQ GAME2_WIN
     B skip_toggle
 ; ##########END Game2 Handler##########
 skip_toggle
@@ -2243,7 +2334,7 @@ GAME1_INT1_HANDLER
     LDR R0, =PONG_bg_color
     BL FILL_SCREEN
     BL DRAW_FULL_BATS
-    B skip_toggle
+    B skip_toggle1
 ; ##########END Game1 Handler##########
 ; ##########Start Game2 Handler##########
 GAME2_INT1_HANDLER
@@ -2362,6 +2453,11 @@ GAME2_INT3_HANDLER
     BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
     BL MAZE_MOVE_DOWN
     BL DRAW_MAZE_PLAYER ; Draw the player block
+    BL MAZE_CHECK_WIN_CONDITION
+    LDR R0, =MAZE_GAME_STATE
+    LDRB R1, [R0]
+    CMP R1, #1
+    BLEQ GAME2_WIN
     B skip_toggle3
 ; ##########END Game2 Handler##########
 skip_toggle3
@@ -2382,8 +2478,8 @@ SysTick_Handler PROC
 GAME2_SYSTICK_HANDLER
     LDR R0, =MAZE_GAME_STATE
     LDRB R1, [R0] ; Load the game state
-    CMP R1, #2 ; Check if the game is lost
-    BEQ SYSTICK_END ; If lost, skip the timer decrement
+    CMP R1, #0 ; Check if the game is running
+    BNE SYSTICK_END ; If lost, skip the timer decrement
     LDR R0, =MAZE_SECOND_TIMER
     LDRH R1, [R0] ; Load the second timer value
     CMP R1, #0
