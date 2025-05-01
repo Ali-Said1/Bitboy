@@ -3,6 +3,8 @@
 	EXPORT ACTIVE_GAME
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
 ACTIVE_GAME       DCB     0       ; 8-bit variable for active game (0 = Main Menu, 1 = Game 1, etc.)
+LAST_DRAW_TIME 	  DCW 	0
+INPUT_BUFFER	  DCB 0
 ;####################################################INTERRUPT VARAIBLES#######################################################
 btn1_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn2_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
@@ -123,9 +125,23 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT MAZE_MOVE_RIGHT
     IMPORT MAZE_MOVE_UP
     ;===============================END Maze Imports=================================
-
-
-	AREA MYCODE, CODE, READONLY
+    ;===============================Start Snake Imports==============================
+    IMPORT SNAKE_prng_state
+    IMPORT SNAKE_HEAD
+    IMPORT SNAKE_LENGTH
+    IMPORT SNAKE_FOOD_POS
+    IMPORT SNAKE_SCORE
+    IMPORT SNAKE_GAME_OVER
+    IMPORT SNAKE_GO_DOWN
+    IMPORT SNAKE_GO_UP
+    IMPORT SNAKE_GO_LEFT
+    IMPORT SNAKE_GO_RIGHT
+    IMPORT SNAKE_LOOP
+    IMPORT SNAKE_RESET
+    IMPORT SNAKE_LOGO
+    ;===============================END Snake Imports================================
+	IMPORT MODULO
+    AREA MYCODE, CODE, READONLY
 
 	ENTRY
 
@@ -137,6 +153,7 @@ __main FUNCTION
     BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
 	BL RESET_MENU
     BL PONG_RESET
+    BL SNAKE_RESET ; TODO: snake
 	BL DRAW_MENU
     LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
 	MOV R11, #0
@@ -149,9 +166,16 @@ MAIN_LOOP
 
     CMP R11, #1 ; Check if R11 is 1
     BEQ DRAW_GAME1_LBL ; If R11 is 1, branch to DRAW_GAME1
+
+    CMP R11, #3
+    BEQ DRAW_GAME3_LBL
 	B END_MAINLOOP
 DRAW_GAME1_LBL
     BL DRAW_GAME1
+    B END_MAINLOOP
+
+DRAW_GAME3_LBL
+    BL DRAW_GAME3
     B END_MAINLOOP
 END_MAINLOOP
 	B MAIN_LOOP
@@ -749,7 +773,7 @@ DRAW_MENU FUNCTION
     MOV R0, #190
     MOV R1, #60
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
+    LDR R3, =SNAKE_LOGO
     MOV R0, #335
     MOV R1, #60
     BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
@@ -1984,6 +2008,215 @@ MAZE_WIN_SOL_COLUMN_CHECK
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+	LTORG
+DRAW_GAME3 FUNCTION
+    PUSH {R0-R12, LR}
+  	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ.W SNAKE_GAME_END
+	LDR R0, =LAST_DRAW_TIME
+	LDRH R1, [R0]
+	CMP R1, #200
+	BLT.W SNAKE_GAME_END
+	MOV R1, #0
+	STRH R1, [R0]
+	; Remove Head
+	LDR R7, =SNAKE_HEAD
+    LDRH R2, [R7]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+	MOV R5, #0xFFFF
+	MOV R5, #0x07E0
+	BL DRAW_RECT
+	; Remove Tail
+	LDR R7, =SNAKE_HEAD
+    LDR R6, =SNAKE_LENGTH
+    LDRB R6, [R6]
+    SUB R6, R6, #1
+	LSL R8, R6, #1
+    LDRH R2, [R7, R8]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+	MOV R5, #0xFFE0
+	BL DRAW_RECT
+	BL SNAKE_LOOP
+	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ.W SNAKE_GAME_OVER_DRAW
+	LDR R0, =INPUT_BUFFER
+	MOV R1, #0
+	STRB R1, [R0]
+	; Draw Tail
+	LDR R7, =SNAKE_HEAD
+    LDR R6, =SNAKE_LENGTH
+    LDRB R6, [R6]
+    SUB R6, R6, #1
+	LSL R8, R6, #1
+    LDRH R2, [R7, R8]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+	MOV R5, #0x07E0
+	BL DRAW_RECT
+	; Draw Head
+	LDR R7, =SNAKE_HEAD
+    LDRH R2, [R7]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+	MOV R5, #0x001F
+	BL DRAW_RECT
+
+    LDR R0, =SNAKE_FOOD_POS
+    LDRH R2, [R0]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+    MOV R5, #0xF800
+    BL DRAW_RECT
+SNAKE_GAME_END
+	POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+; R5 has color
+; R9 has head color
+SNAKE_DRAW FUNCTION
+	PUSH {R0-R12, LR}
+	LDR R7, =SNAKE_HEAD
+    LDR R6, =SNAKE_LENGTH
+    LDRB R6, [R6]
+    SUB R6, R6, #1
+SNAKE_DRAW_LOOP
+	LSL R8, R6, #1
+    LDRH R2, [R7, R8]
+    LSR R0, R2, #8
+    AND R1, R2, #0xFF
+	MOV R2, #10
+	MUL R0, R0, R2
+	MUL R1, R1, R2
+    MOV R3, #10
+    MOV R4, #10
+    CMP R6, #0
+    MOVEQ R5, R9
+    BL DRAW_RECT
+
+    SUBS R6, R6, #1
+    CMP R6, #-1
+    BNE SNAKE_DRAW_LOOP
+	POP {R0-R12, LR}
+	BX LR
+	ENDFUNC
+SNAKE_GAME_OVER_DRAW FUNCTION
+	PUSH {R0-R12}
+	MOV R0, #0xFFE0
+ 	BL FILL_SCREEN
+    MOV R0, #200
+    MOV R1, #144
+    LDR R3, =char_83 ; S
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    ADD R0, R0, #16
+    LDR R3, =char_67 ; C
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    ADD R0, R0, #16
+    LDR R3, =char_79 ; O
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    ADD R0, R0, #16
+    LDR R3, =char_82 ; R
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    ADD R0, R0, #16
+    LDR R3, =char_69 ; E
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    ; Draw the score itself
+    LDR R3, =SNAKE_SCORE
+    LDRH R9, [R3]
+    MOV R0, R9
+    MOV R1, #10
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    MOV R0, #256
+    MOV R1, #160
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    MOV R1, #10
+    UDIV R9, R1
+    MOV R0, R9
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    MOV R0, #240
+    MOV R1, #160
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    MOV R1, #10
+    UDIV R9, R1
+    MOV R0, R9
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    MOV R0, #224
+    MOV R1, #160
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+    BL DRAW_CHAR
+    MOV R1, #10
+    UDIV R9, R1
+    MOV R0, R9
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    MOV R0, #208
+    MOV R1, #160
+    MOV R4, #0x001F ; Set the foreground color to Blue
+    MOV R5, #0xFFE0
+	BL DRAW_CHAR
+	POP {R0-R12}
+	B MAIN_LOOP
+	ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -2131,6 +2364,7 @@ TFT_INIT FUNCTION
     POP {R0-R1, R5, lr}
     bx lr
     ENDFUNC
+    LTORG
 ;#######################################################END TFT FUNCTIONS#######################################################
 ;#######################################################START INTERRUPT HANDLER#######################################################
 EXTI0_IRQHandler PROC ; Right Button Handler
@@ -2160,6 +2394,8 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     BEQ GAME1_INT0_HANDLER
     CMP R11, #2
     BEQ GAME2_INT0_HANDLER
+    CMP R11, #3
+    BEQ GAME3_INT0_HANDLER
 	B skip_toggle
 
 ; ##########Start Main Menu Handler##########
@@ -2237,6 +2473,22 @@ GAME2_INT0_HANDLER
     BLEQ GAME2_WIN
     B skip_toggle
 ; ##########END Game2 Handler##########
+;###########Start Game3 Handler##########
+GAME3_INT0_HANDLER
+	LDR R0, =INPUT_BUFFER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle
+	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle
+	BL SNAKE_GO_RIGHT
+	LDR R0, =INPUT_BUFFER
+	MOV R1, #1
+	STRB R1, [R0]
+    B skip_toggle
+;##########END Game3 Handler############
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2269,6 +2521,8 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     BEQ GAME1_INT1_HANDLER
     CMP R11, #2
     BEQ GAME2_INT1_HANDLER
+    CMP R11, #3
+    BEQ GAME3_INT1_HANDLER
 	B skip_toggle1
     ; ##########Start Main Menu Handler##########
 MENU_INT1_HANDLER
@@ -2347,6 +2601,22 @@ GAME2_INT1_HANDLER
     BL DRAW_MAZE_PLAYER ; Draw the player block
     B skip_toggle1
 ; ##########END Game2 Handler##########
+;###########Start Game3 Handler##########
+GAME3_INT1_HANDLER
+	LDR R0, =INPUT_BUFFER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle1
+	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle1
+	BL SNAKE_GO_LEFT
+	LDR R0, =INPUT_BUFFER
+	MOV R1, #1
+	STRB R1, [R0]
+    B skip_toggle1
+;##########END Game3 Handler############
 skip_toggle1
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2379,6 +2649,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     BEQ GAME1_INT2_HANDLER
     CMP R11, #2
     BEQ GAME2_INT2_HANDLER
+    CMP R11, #3
+    BEQ GAME3_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -2393,12 +2665,31 @@ MENU_INT2_HANDLER
     BEQ RESET_PONG_LBL
     CMP R11, #2
     BEQ RESET_MAZE_LBL
+    CMP R11, #3
+    BEQ RESET_SNAKE_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
 RESET_MAZE_LBL
     BL MAZE_RESET ; Reset the game
     BL DRAW_GAME2 ; Draw the maze
+    B skip_toggle2
+RESET_SNAKE_LBL
+    LDR R0, =SysTick_BASE
+    LDR R1, =SysTick_CURRENT_VALUE_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LDR R0, =SNAKE_prng_state
+    STR R1, [R0] ; Store the current SysTick value in the PRNG state variable
+    
+    BL SNAKE_RESET
+    
+	LDR R0, =LAST_DRAW_TIME
+	MOV R1, #0
+	STRH R1, [R0]
+	
+    MOV R0, #0xFFE0
+    BL FILL_SCREEN
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
@@ -2415,6 +2706,22 @@ GAME2_INT2_HANDLER
     BL DRAW_MAZE_PLAYER ; Draw the player block
     B skip_toggle2
 ; ##########END Game2 Handler##########
+; ##########Start Game3 Hanlder##########
+GAME3_INT2_HANDLER
+	LDR R0, =INPUT_BUFFER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle2
+	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle2
+    BL SNAKE_GO_UP
+	LDR R0, =INPUT_BUFFER
+	MOV R1, #1
+	STRB R1, [R0]
+	B skip_toggle2
+; ##########END Game3 Hanlder##########
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2443,6 +2750,8 @@ EXTI3_IRQHandler PROC ; Down button handler
 	LDRB R11, [R11]
     CMP R11, #2
     BEQ GAME2_INT3_HANDLER
+    CMP R11, #3
+    BEQ GAME3_INT3_HANDLER
     B skip_toggle3
 ; ##########Start Game2 Handler##########
 GAME2_INT3_HANDLER
@@ -2460,6 +2769,22 @@ GAME2_INT3_HANDLER
     BLEQ GAME2_WIN
     B skip_toggle3
 ; ##########END Game2 Handler##########
+; ##########Start Game3 Handler##########
+GAME3_INT3_HANDLER
+	LDR R0, =INPUT_BUFFER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle3
+	LDR R0, =SNAKE_GAME_OVER
+	LDRB R0, [R0]
+	CMP R0, #1
+	BEQ skip_toggle3
+	BL SNAKE_GO_DOWN
+	LDR R0, =INPUT_BUFFER
+	MOV R1, #1
+	STRB R1, [R0]
+    B skip_toggle3
+; ##########END Game3 Handler##########
 skip_toggle3
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2470,6 +2795,10 @@ SysTick_Handler PROC
 	LDR     R1, [R0]            ; Load current value of my_variable
 	ADD     R1, R1, #1          ; Increment value by 1
 	STR     R1, [R0]            ; Store updated value back to my_variable
+	LDR R0, =LAST_DRAW_TIME
+	LDRH R1, [R0]
+	ADD R1, R1, #1
+	STRH R1, [R0]
     LDR     R0, =ACTIVE_GAME ; Load the active game variable address
     LDRB    R11, [R0] ; Load the active game variable value
     CMP     R11, #2

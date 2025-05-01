@@ -20,23 +20,26 @@ SNAKE_FOOD_POS        DCW 0x0909      ; XXYY food position
 SNAKE_HEAD      DCW 0x1414      ; XXYY initial position
 snake_body      SPACE 2*1536  ; Array to store snake body segments (x,y coordinates (2Bytes) for each)
 snake_direction DCB dirRight        ; Initial direction: right
-SNAKE_SCORE           DCB 0x00            ; Current SNAKE_SCORE
+SNAKE_SCORE           DCW 0x00            ; Current SNAKE_SCORE
 SNAKE_GAME_OVER       DCB 0x00            ; Game over flag (0 = playing, 1 = game over)
 SNAKE_prng_state    DCD 0x00  ; Initial seed value
 
         AREA CODE, CODE, READONLY
         EXPORT SNAKE_LOOP
         EXPORT SNAKE_RESET
-        EXPORT GO_DOWN
-        EXPORT GO_UP
-        EXPORT GO_LEFT
-        EXPORT GO_RIGHT
-
+        EXPORT SNAKE_GO_DOWN
+        EXPORT SNAKE_GO_UP
+        EXPORT SNAKE_GO_LEFT
+        EXPORT SNAKE_GO_RIGHT
+        EXPORT MODULO
 
 SNAKE_LOOP FUNCTION
+		PUSH {LR}
         BL      update_snake
         BL      check_collisions
-        ENDFUNC
+        POP {LR}
+		BX LR
+		ENDFUNC
 
 SNAKE_RESET FUNCTION
         PUSH    {R0-R1, LR}
@@ -63,7 +66,7 @@ SNAKE_RESET FUNCTION
         ; Initialize SNAKE_SCORE
         LDR     R0, =SNAKE_SCORE
         MOV     R1, #0              ; Start with SNAKE_SCORE of 0
-        STRB    R1, [R0]
+        STRH    R1, [R0]
 
         ; Initialize game over flag
         LDR     R0, =SNAKE_GAME_OVER
@@ -267,9 +270,9 @@ increase_score
         PUSH    {R0-R1, LR}
         
         LDR     R0, =SNAKE_SCORE
-        LDRB    R1, [R0]
+        LDRH    R1, [R0]
         ADD     R1, R1, #1          ; Increment SNAKE_SCORE
-        STRB    R1, [R0]            ; Store updated SNAKE_SCORE
+        STRH    R1, [R0]            ; Store updated SNAKE_SCORE
         
         POP     {R0-R1, LR}
         BX      LR
@@ -323,7 +326,7 @@ no_collision
         BX      LR
                 
 
-GO_UP FUNCTION
+SNAKE_GO_UP FUNCTION
     PUSH {R2, R3, LR}
     LDR     R2, =snake_direction	;R2 points to snake_direction
     LDRB    R3, [R2]
@@ -336,7 +339,7 @@ save_up
     POP {R2, R3, LR}
     BX LR
     ENDFUNC
-GO_RIGHT FUNCTION
+SNAKE_GO_RIGHT FUNCTION
     PUSH {R2, R3, LR}
     LDR     R2, =snake_direction	;R2 points to snake_direction
     LDRB    R3, [R2]
@@ -350,7 +353,7 @@ save_right
     BX LR
     ENDFUNC
 
-GO_LEFT FUNCTION
+SNAKE_GO_LEFT FUNCTION
     PUSH {R2, R3, LR}
     LDR     R2, =snake_direction	;R2 points to snake_direction
     LDRB    R3, [R2]
@@ -364,7 +367,7 @@ save_left
     BX LR
     ENDFUNC
 
-GO_DOWN FUNCTION
+SNAKE_GO_DOWN FUNCTION
     PUSH {R2, R3, LR}
     LDR     R2, =snake_direction	;R2 points to snake_direction
     LDRB    R3, [R2]
