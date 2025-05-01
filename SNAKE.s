@@ -1,106 +1,88 @@
-; Constants
-Width       EQU 480        ; Screen width
-Height      EQU 320        ; Screen height
-color_red   EQU 0xF800     ; RGB565 color constants
-color_green EQU 0x07D0
-color_blue  EQU 0x001F
-snake_size  EQU 0x000A     ; Size of each snake segment
-max_length  EQU 20        ; Maximum snake length
+
+        AREA  SNAKECONSTS, DATA, READONLY
 dirRight    EQU 0
 dirLeft     EQU 1
 dirUp       EQU 2
 dirDown     EQU 3
-food_size   EQU 0x000A     ; Size of food
 
-        AREA    VECTORS, CODE, READONLY
-        EXPORT  __Vectors
-__Vectors
-        DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
-        DCD     Reset_Handler       ; Reset handler address
 
-        AREA    DATA, DATA, READWRITE
-        EXPORT SNAKE
-        EXPORT snake_head
-        EXPORT snake_body
-        EXPORT snake_length
-        EXPORT snake_direction
-        EXPORT food_pos
-        EXPORT score
-        EXPORT game_over
+        AREA    SNAKEDATA, DATA, READWRITE
+        EXPORT SNAKE_prng_state
+        EXPORT SNAKE_HEAD
+        EXPORT SNAKE_LENGTH
+        EXPORT SNAKE_FOOD_POS
+        EXPORT SNAKE_SCORE
+        EXPORT SNAKE_GAME_OVER
 
 SNAKE
-snake_length    DCB 0x01      ; Initial snake length (just the head)
-food_pos        DCW 0x0909      ; XXYY food position
-snake_head      DCW 0x1414      ; XXYY initial position
-snake_body      SPACE 2*max_length  ; Array to store snake body segments (x,y coordinates (4Bytes) for each)
+SNAKE_LENGTH    DCB 0x01      ; Initial snake length (just the head)
+SNAKE_FOOD_POS        DCW 0x0909      ; XXYY food position
+SNAKE_HEAD      DCW 0x1414      ; XXYY initial position
+snake_body      SPACE 2*1536  ; Array to store snake body segments (x,y coordinates (2Bytes) for each)
 snake_direction DCB dirRight        ; Initial direction: right
-score           DCB 0x00            ; Current score
-game_over       DCB 0x00            ; Game over flag (0 = playing, 1 = game over)
+SNAKE_SCORE           DCB 0x00            ; Current SNAKE_SCORE
+SNAKE_GAME_OVER       DCB 0x00            ; Game over flag (0 = playing, 1 = game over)
 SNAKE_prng_state    DCD 0x00  ; Initial seed value
 
         AREA CODE, CODE, READONLY
-        EXPORT Reset_Handler
-        EXPORT game_loop
-Reset_Handler
-        MOV sp, r13
-        MOV r8, #0                  ; Simulation steps
+        EXPORT SNAKE_LOOP
+        EXPORT SNAKE_RESET
+        EXPORT GO_DOWN
+        EXPORT GO_UP
+        EXPORT GO_LEFT
+        EXPORT GO_RIGHT
 
 
 SNAKE_LOOP FUNCTION
         BL      update_snake
-        BL check_collisions
+        BL      check_collisions
         ENDFUNC
 
 SNAKE_RESET FUNCTION
-
+        PUSH    {R0-R1, LR}
         ; Initialize snake head position (middle of screen)
-        LDR     R0, =snake_head
+        LDR     R0, =SNAKE_HEAD
         LDR     R1, =0x1414     ; Initial position
         STRH     R1, [R0]
 
         ; Initialize snake length
-        LDR     R0, =snake_length
+        LDR     R0, =SNAKE_LENGTH
         MOV     R1, #1              ; Start with length of 1 (just the head)
         STRB     R1, [R0]
 
         ; Initialize snake direction
         LDR     R0, =snake_direction
-        MOV     R1, #dirRight       ; Start moving right
+        MOV     R1, #dirUp       ; Start moving right
         STRB    R1, [R0]
 
         ; Initialize food position
-        LDR     R0, =food_pos
+        LDR     R0, =SNAKE_FOOD_POS
         LDR     R1, =0x1409
         STRH     R1, [R0]
 
-        ; Initialize score
-        LDR     R0, =score
-        MOV     R1, #0              ; Start with score of 0
+        ; Initialize SNAKE_SCORE
+        LDR     R0, =SNAKE_SCORE
+        MOV     R1, #0              ; Start with SNAKE_SCORE of 0
         STRB    R1, [R0]
 
         ; Initialize game over flag
-        LDR     R0, =game_over
+        LDR     R0, =SNAKE_GAME_OVER
         MOV     R1, #0              ; Game is running
         STRB    R1, [R0]
-                
-                ; Initialize random_seed
-        LDR     R0, =SNAKE_prng_state
-        MOV     R1, #0x12
-        STR    R1, [R0]
-
-        LDR     r0, =SNAKE
-        B       game_loop
+        
+        POP    {R0-R1, LR}
+        BX LR
         ENDFUNC
 
 
 ; ----------------------------------------------------
 ; update_snake: Move the snake one step in the current direction
-update_snake FUNCTION
+update_snake 
         PUSH    {R0-R7, LR}
         BL update_head_func ; Stores new position in R6 (XXYY)
 
         ; Check if snake head has collided with food
-        LDR     R0, =food_pos
+        LDR     R0, =SNAKE_FOOD_POS
         LDRH     R4, [R0]            ; R4 = food position
         
         ; Check if head and food are at the same position
@@ -112,8 +94,8 @@ update_snake FUNCTION
 update_body
         ; First, update the snake body (move each segment to position of segment ahead of it)
         LDR     R0, =snake_body
-        LDR     R1, =snake_head
-        LDR     R3, =snake_length
+        LDR     R1, =SNAKE_HEAD
+        LDR     R3, =SNAKE_LENGTH
         LDRB     R3, [R3]            ; R3 = snake length
         ; Skip body update if length is just 1 (only head)
         CMP     R3, #1
@@ -147,12 +129,11 @@ update_head
 
         POP     {R0-R7, LR}
         BX      LR
-        ENDFUNC
 
-update_head_func FUNCTION
+update_head_func
     PUSH {LR}
         ; updating the head position based on current direction
-        LDR     R0, =snake_head
+        LDR     R0, =SNAKE_HEAD
         LDRH     R1, [R0]            ; R1 = current head position
         LDR     R2, =snake_direction
         LDRB    R3, [R2]            ; R3 = current direction
@@ -185,7 +166,6 @@ ret_update_head
         ORR     R6, R6, R5
     POP {LR}
     BX LR
-        ENDFUNC
 
 ; ----------------------------------------------------
 ; check_collisions: Check if snake has collided with walls, food, or itself
@@ -193,7 +173,7 @@ check_collisions
         PUSH    {R0-R7, LR}
         
         ; Get head position
-        LDR     R0, =snake_head
+        LDR     R0, =SNAKE_HEAD
         LDRH     R1, [R0]            ; R1 = head position
         
         ; Extract X and Y from head position
@@ -211,7 +191,7 @@ check_collisions
         BGT     collision_detected  ; Y >= Height
         
         ; Check self-collision (snake length > 1)
-        LDR     R0, =snake_length
+        LDR     R0, =SNAKE_LENGTH
         LDRB     R4, [R0]            ; R4 = snake length
         CMP     R4, #1
         BEQ     collision_done          ; Skip self-collision check if length is 1
@@ -240,7 +220,7 @@ self_collision_loop
         
 collision_detected
         ; Set game over flag
-        LDR     R0, =game_over
+        LDR     R0, =SNAKE_GAME_OVER
         MOV     R1, #1
         STRB    R1, [R0]
         
@@ -253,19 +233,16 @@ collision_done
 grow_snake
         PUSH    {R0-R4, LR}
         
-        LDR     R0, =snake_length
+        LDR     R0, =SNAKE_LENGTH
         LDRB     R1, [R0]            ; R1 = current length
         
-        ; Check if max length reached
-        CMP     R1, #max_length
-        BGE     grow_done
         
         ; Increase length
         ADD     R1, R1, #1
         STR     R1, [R0]            ; Store new length
         
         ; Initialize the new segment (copy from tail position)
-        LDR     R0, =snake_head
+        LDR     R0, =SNAKE_HEAD
         SUB     R2, R1, #1          ; R2 = index of new segment
         SUB     R3, R1, #2          ; R3 = index of previous last segment
         
@@ -285,14 +262,14 @@ grow_done
         BX      LR
 
 ; ----------------------------------------------------
-; increase_score: Add 1 to the current score
+; increase_score: Add 1 to the current SNAKE_SCORE
 increase_score
         PUSH    {R0-R1, LR}
         
-        LDR     R0, =score
+        LDR     R0, =SNAKE_SCORE
         LDRB    R1, [R0]
-        ADD     R1, R1, #1          ; Increment score
-        STRB    R1, [R0]            ; Store updated score
+        ADD     R1, R1, #1          ; Increment SNAKE_SCORE
+        STRB    R1, [R0]            ; Store updated SNAKE_SCORE
         
         POP     {R0-R1, LR}
         BX      LR
@@ -317,7 +294,7 @@ spawn_new_food
         MOV R3, #0
 food_collision_loop
         ; Calculate address of current segment
-        LDR 	R8, =snake_head
+        LDR 	R8, =SNAKE_HEAD
         
         ADD     R8, R3,LSL #1          ; R8 = R3 * 2       
         LDRH     R8, [R8]
@@ -326,7 +303,7 @@ food_collision_loop
         BEQ     food_collision_detected  ; Head collided with body segment
         
         ADD     R3, #1          ; Increment loop counter
-        LDR 	R0, =snake_length
+        LDR 	R0, =SNAKE_LENGTH
         LDRB 	R5, [R0]
 
         CMP     R3, R5              ; Compare with snake length
@@ -338,8 +315,8 @@ food_collision_detected
         B spawn_new_food
 
 no_collision
-        ; Store into food_pos
-        LDR     R0, =food_pos
+        ; Store into SNAKE_FOOD_POS
+        LDR     R0, =SNAKE_FOOD_POS
         STRH     R6, [R0]
 
         POP     {R0-R6, LR}
