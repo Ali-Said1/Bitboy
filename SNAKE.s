@@ -29,15 +29,14 @@ __Vectors
         EXPORT game_over
 
 SNAKE
+snake_length    DCB 0x01      ; Initial snake length (just the head)
 food_pos        DCW 0x0909      ; XXYY food position
 snake_head      DCW 0x1414      ; XXYY initial position
 snake_body      SPACE 2*max_length  ; Array to store snake body segments (x,y coordinates (4Bytes) for each)
-snake_length    DCD 0x00000001      ; Initial snake length (just the head)
 snake_direction DCB dirRight        ; Initial direction: right
 score           DCB 0x00            ; Current score
 game_over       DCB 0x00            ; Game over flag (0 = playing, 1 = game over)
-last_input      DCB 0x00            ; Last keyboard input
-SNAKE_prng_state    DCB 0x00  ; Initial seed value
+SNAKE_prng_state    DCD 0x00  ; Initial seed value
 
         AREA CODE, CODE, READONLY
         EXPORT Reset_Handler
@@ -46,8 +45,13 @@ Reset_Handler
         MOV sp, r13
         MOV r8, #0                  ; Simulation steps
 
-start
 
+SNAKE_LOOP FUNCTION
+        BL      update_snake
+        BL check_collisions
+        ENDFUNC
+
+SNAKE_RESET FUNCTION
 
         ; Initialize snake head position (middle of screen)
         LDR     R0, =snake_head
@@ -57,7 +61,7 @@ start
         ; Initialize snake length
         LDR     R0, =snake_length
         MOV     R1, #1              ; Start with length of 1 (just the head)
-        STR     R1, [R0]
+        STRB     R1, [R0]
 
         ; Initialize snake direction
         LDR     R0, =snake_direction
@@ -66,7 +70,7 @@ start
 
         ; Initialize food position
         LDR     R0, =food_pos
-        LDR     R1, =0x0909
+        LDR     R1, =0x1409
         STRH     R1, [R0]
 
         ; Initialize score
@@ -82,115 +86,35 @@ start
                 ; Initialize random_seed
         LDR     R0, =SNAKE_prng_state
         MOV     R1, #0x12
-        STRB    R1, [R0]
+        STR    R1, [R0]
 
         LDR     r0, =SNAKE
         B       game_loop
+        ENDFUNC
 
-game_loop
-        ADD     r8, r8, #1          ; Increment simulation step counter
-
-
-        BL spawn_new_food
-        MOV R3, #0
- ;       ; Process input (when connection not now)
- ;       BL      process_input
- ;
- ;       ; Update snake position
- ;       BL      update_snake
- ;
- ;       ; Check collisions (with walls, food, and self)
- ;       BL      check_collisions
-
-        ; Next frame
-        B       game_loop
-
-hang
-        B       hang                ; End game loop if game is over
-                
-                
-                
-        
-
-GO_UP FUNCTION
-
-    LDR     R2, =snake_direction	;R2 points to snake_direction
-    LDRB    R3, [R2]
-    CMP     R3, #dirDown
-    BEQ     save_direction
-    MOV     R3, #dirUp
-    B       save_direction
-save_direction
-        STRB    R3, [R2]            ; Save the new direction
-        MOV     R1, #0
-        STRB    R1, [R0]            
-
-    ENDFUNC
-
-; ----------------------------------------------------
-; process_input: Handle input to change snake direction
-process_input
-        PUSH    {R0-R3, LR}
-        
-        ; For simulation, input is stored in last_input
-
-        LDR     R0, =last_input 		;R0 points to last_input
-        LDRB    R1, [R0]
-        LDR     R2, =snake_direction	;R2 points to snake_direction
-        LDRB    R3, [R2]
-
-        ; Check input and update direction
-                ; hna el inputs temporary 'w a d s' (httbdl sa3t el simulation)
-        ; 'w' = up, 'a' = left, 's' = down, 'd' = right
-        
-        CMP     R1, #'w'
-        BNE     not_up
-        ; Can't go down if already going up
-        CMP     R3, #dirDown
-        BEQ     input_done
-        MOV     R3, #dirUp
-        B       save_direction
-not_up
-        CMP     R1, #'a'
-        BNE     not_left
-        ; Can't go right if already going left
-        CMP     R3, #dirRight
-        BEQ     input_done
-        MOV     R3, #dirLeft
-        B       save_direction
-not_left
-        CMP     R1, #'s'
-        BNE     not_down
-        ; Can't go up if already going down
-        CMP     R3, #dirUp
-        BEQ     input_done
-        MOV     R3, #dirDown
-        B       save_direction
-not_down
-        CMP     R1, #'d'
-        BNE     input_done
-        ; Can't go left if already going right
-        CMP     R3, #dirLeft
-        BEQ     input_done
-        MOV     R3, #dirRight
-
-
-
-input_done
-        POP     {R0-R3, LR}
-        BX      LR
 
 ; ----------------------------------------------------
 ; update_snake: Move the snake one step in the current direction
-update_snake
+update_snake FUNCTION
         PUSH    {R0-R7, LR}
+        BL update_head_func ; Stores new position in R6 (XXYY)
+
+        ; Check if snake head has collided with food
+        LDR     R0, =food_pos
+        LDRH     R4, [R0]            ; R4 = food position
         
+        ; Check if head and food are at the same position
+        CMP     R6, R4
+        BNE     update_body
+        BL      grow_snake
+        BL      increase_score
+        BL      spawn_new_food
+update_body
         ; First, update the snake body (move each segment to position of segment ahead of it)
         LDR     R0, =snake_body
         LDR     R1, =snake_head
-        LDR     R2, =snake_length
-        LDR     R3, [R2]            ; R3 = snake length
-        
+        LDR     R3, =snake_length
+        LDRB     R3, [R3]            ; R3 = snake length
         ; Skip body update if length is just 1 (only head)
         CMP     R3, #1
         BEQ     update_head
@@ -200,26 +124,16 @@ update_snake
         MOV     R5, R4              ; R5 = loop counter
         
 body_update_loop
-        ; Calculate address of current segment: snake_body + (R5 * 4)
+        ; Calculate address of current segment: snake_body + (R5 * 2)
         MOV     R6, R5
-        LSL     R6, R6, #2          ; R6 = R5 * 4
-        ADD     R6, R0, R6          ; R6 = address of current segment
+        LSL     R6, R6, #1          ; R6 = R5 * 2
+        ADD     R6, R1, R6          ; R6 = address of current segment
         
-        ; Calculate address of segment ahead: snake_body + ((R5-1) * 4)
+        ; Calculate address of segment ahead: snake_body + ((R5-1) * 2)
         SUB     R7, R5, #1
-        LSL     R7, R7, #2          ; R7 = (R5-1) * 4
-        ADD     R7, R0, R7          ; R7 = address of segment ahead
+        LSL     R7, R7, #1          ; R7 = (R5-1) * 2
+        ADD     R7, R1, R7          ; R7 = address of segment ahead
         
-        ; If this is segment 0, copy from head instead
-        CMP     R5, #1
-        BNE     not_first_segment
-        
-        ; Copy head position to first body segment
-        LDR     R7, [R1]            ; Load head position
-        STR     R7, [R6]            ; Store at segment position
-        B       next_segment
-        
-not_first_segment
         ; Copy from segment ahead
         LDR     R7, [R7]            ; Load position of segment ahead
         STR     R7, [R6]            ; Store at current segment position
@@ -227,44 +141,51 @@ not_first_segment
 next_segment
         SUBS    R5, R5, #1          ; Decrement loop counter
         BNE     body_update_loop    ; Continue loop if not zero
-
 update_head
+        BL update_head_func ; Stores new position in R6 (XXYY)
+        STRH     R6, [R0]            ; Store updated head position
+
+        POP     {R0-R7, LR}
+        BX      LR
+        ENDFUNC
+
+update_head_func FUNCTION
+    PUSH {LR}
         ; updating the head position based on current direction
         LDR     R0, =snake_head
-        LDR     R1, [R0]            ; R1 = current head position
+        LDRH     R1, [R0]            ; R1 = current head position
         LDR     R2, =snake_direction
         LDRB    R3, [R2]            ; R3 = current direction
         
         ; Extract X and Y coordinates from head position
-        LSR     R4, R1, #16         ; R4 = X position
-        UXTH    R5, R1              ; R5 = Y position
+        LSR     R4, R1, #8         ; R4 = X position
+        UXTB    R5, R1              ; R5 = Y position
         
         ; Update position based on direction
         CMP     R3, #dirRight
         BNE     not_right
-        ADD     R4, R4, #snake_size ; Move right
-        B       update_pos
+        ADD     R4, R4, #1 ; Move right
+        B       ret_update_head
 not_right
         CMP     R3, #dirLeft
         BNE     not_left_dir
-        SUB     R4, R4, #snake_size ; Move left
-        B       update_pos
+        SUB     R4, R4, #1 ; Move left
+        B       ret_update_head
 not_left_dir
         CMP     R3, #dirUp
         BNE     not_up_dir
-        SUB     R5, R5, #snake_size ; Move up
-        B       update_pos
+        SUB     R5, R5, #1 ; Move up
+        B       ret_update_head
 not_up_dir
-        ADD     R5, R5, #snake_size ; Move down (if none of the above)
-        
-update_pos
+        ADD     R5, R5, #1 ; Move down (if none of the above)
+
+ret_update_head
         ; Combine X and Y back into position
-        LSL     R6, R4, #16
+        LSL     R6, R4, #8
         ORR     R6, R6, R5
-        STR     R6, [R0]            ; Store updated head position
-        
-        POP     {R0-R7, LR}
-        BX      LR
+    POP {LR}
+    BX LR
+        ENDFUNC
 
 ; ----------------------------------------------------
 ; check_collisions: Check if snake has collided with walls, food, or itself
@@ -273,62 +194,47 @@ check_collisions
         
         ; Get head position
         LDR     R0, =snake_head
-        LDR     R1, [R0]            ; R1 = head position
+        LDRH     R1, [R0]            ; R1 = head position
         
         ; Extract X and Y from head position
-        LSR     R2, R1, #16         ; R2 = head X
-        UXTH    R3, R1              ; R3 = head Y
+        LSR     R2, R1, #8          ; R2 = head X
+        UXTB    R3, R1              ; R3 = head Y
         
         ; Check wall collisions
         CMP     R2, #0
         BLT     collision_detected  ; X < 0
-        CMP     R2, #Width
-        BGE     collision_detected  ; X >= Width
+        CMP     R2, #47
+        BGT     collision_detected
         CMP     R3, #0
         BLT     collision_detected  ; Y < 0
-        CMP     R3, #Height
-        BGE     collision_detected  ; Y >= Height
+        CMP     R3, #31
+        BGT     collision_detected  ; Y >= Height
         
         ; Check self-collision (snake length > 1)
         LDR     R0, =snake_length
-        LDR     R4, [R0]            ; R4 = snake length
+        LDRB     R4, [R0]            ; R4 = snake length
         CMP     R4, #1
-        BEQ     check_food          ; Skip self-collision check if length is 1
+        BEQ     collision_done          ; Skip self-collision check if length is 1
         
         LDR     R0, =snake_body
         MOV     R5, #0              ; R5 = loop counter
         
 self_collision_loop
-        ; Calculate address of current segment: snake_body + (R5 * 4)
-        LSL     R6, R5, #2          ; R6 = R5 * 4
+        ; Calculate address of current segment: snake_body + (R5 * 1)
+        LSL     R6, R5, #1          ; R6 = R5 * 1
         ADD     R6, R0, R6          ; R6 = address of current segment
-        LDR     R7, [R6]            ; R7 = segment position
+        LDRH     R7, [R6]            ; R7 = segment position
         
         ; Compare with head position
         CMP     R1, R7
         BEQ     collision_detected  ; Head collided with body segment
         
         ADD     R5, R5, #1          ; Increment loop counter
-        CMP     R5, R4              ; Compare with snake length
+        SUB     R6, R4, #1
+        CMP     R5, R6              ; Compare with snake length
         BLT     self_collision_loop ; Continue if not done
         
-check_food
-        ; Check if snake head has collided with food
-        LDR     R0, =food_pos
-        LDR     R4, [R0]            ; R4 = food position
-        
-        ; Extract X and Y from food position
-        LSR     R5, R4, #16         ; R5 = food X
-        UXTH    R6, R4              ; R6 = food Y
-        
-        ; Check if head and food are at the same position
-        CMP     R1, R4
-        BNE     collision_done
-        
-        ; Snake ate the food
-        BL      grow_snake
-        BL      increase_score
-        BL      spawn_new_food
+
         
         B       collision_done
         
@@ -348,7 +254,7 @@ grow_snake
         PUSH    {R0-R4, LR}
         
         LDR     R0, =snake_length
-        LDR     R1, [R0]            ; R1 = current length
+        LDRB     R1, [R0]            ; R1 = current length
         
         ; Check if max length reached
         CMP     R1, #max_length
@@ -359,20 +265,20 @@ grow_snake
         STR     R1, [R0]            ; Store new length
         
         ; Initialize the new segment (copy from tail position)
-        LDR     R0, =snake_body
-        SUB     R2, R1, #1          ; R2 = index of last segment
-        SUB     R3, R2, #1          ; R3 = index of previous last segment
+        LDR     R0, =snake_head
+        SUB     R2, R1, #1          ; R2 = index of new segment
+        SUB     R3, R1, #2          ; R3 = index of previous last segment
         
         ; Calculate addresses
-        LSL     R2, R2, #2          ; R2 = R2 * 4
+        LSL     R2, R2, #1          ; R2 = R2 * 2
         ADD     R2, R0, R2          ; R2 = address of new segment
         
-        LSL     R3, R3, #2          ; R3 = R3 * 4
+        LSL     R3, R3, #1          ; R3 = R3 * 2
         ADD     R3, R0, R3          ; R3 = address of previous last segment
         
         ; Copy position
-        LDR     R4, [R3]
-        STR     R4, [R2]
+        LDRH     R4, [R3]
+        STRH     R4, [R2]
         
 grow_done
         POP     {R0-R4, LR}
@@ -391,23 +297,19 @@ increase_score
         POP     {R0-R1, LR}
         BX      LR
 
+
+; Working
 ; ----------------------------------------------------
 ; spawn_new_food: Generate a new random position for food
-; ----------------------------------------------------
-; spawn_new_food: Generate a new random food position
-; X in range 0 - 450 (i.e., 0 45 * 10)
-; Y in range 0 - 340 (i.e., 0 34 * 10)
 spawn_new_food
         PUSH    {R0-R6, LR}
 
-        MOV R3, #42
-        BL get_random ; [0, 41]
-        ADD R0, #3
+        MOV R3, #48
+        BL get_random ; [0, 47]
         MOV R6, R0 ; R4 = X
 
-        MOV R3, #26
-        BL get_random ; [0, 25]
-        ADD R0, #3
+        MOV R3, #32
+        BL get_random ; [0, 31]
         MOV R5, R0 ; R5 = Y
         LSL R6, #8
         ORR R6, R5
@@ -425,7 +327,7 @@ food_collision_loop
         
         ADD     R3, #1          ; Increment loop counter
         LDR 	R0, =snake_length
-        LDR 	R5, [R0]
+        LDRB 	R5, [R0]
 
         CMP     R3, R5              ; Compare with snake length
         BLT     food_collision_loop ; Continue if not done
@@ -443,8 +345,64 @@ no_collision
         POP     {R0-R6, LR}
         BX      LR
                 
-; ----------------------------------------------------
 
+GO_UP FUNCTION
+    PUSH {R2, R3, LR}
+    LDR     R2, =snake_direction	;R2 points to snake_direction
+    LDRB    R3, [R2]
+    CMP     R3, #dirDown
+    BEQ     save_up
+    MOV     R3, #dirUp
+    B       save_up
+save_up
+    STRB    R3, [R2]            ; Save the new direction
+    POP {R2, R3, LR}
+    BX LR
+    ENDFUNC
+GO_RIGHT FUNCTION
+    PUSH {R2, R3, LR}
+    LDR     R2, =snake_direction	;R2 points to snake_direction
+    LDRB    R3, [R2]
+    CMP     R3, #dirLeft
+    BEQ     save_right
+    MOV     R3, #dirRight
+    B       save_right
+save_right
+    STRB    R3, [R2]            ; Save the new direction
+    POP {R2, R3, LR}
+    BX LR
+    ENDFUNC
+
+GO_LEFT FUNCTION
+    PUSH {R2, R3, LR}
+    LDR     R2, =snake_direction	;R2 points to snake_direction
+    LDRB    R3, [R2]
+    CMP     R3, #dirRight
+    BEQ     save_left
+    MOV     R3, #dirLeft
+    B       save_left
+save_left
+    STRB    R3, [R2]            ; Save the new direction
+    POP {R2, R3, LR}
+    BX LR
+    ENDFUNC
+
+GO_DOWN FUNCTION
+    PUSH {R2, R3, LR}
+    LDR     R2, =snake_direction	;R2 points to snake_direction
+    LDRB    R3, [R2]
+    CMP     R3, #dirUp
+    BEQ     save_down
+    MOV     R3, #dirDown
+    B       save_down
+save_down
+    STRB    R3, [R2]            ; Save the new direction
+    POP {R2, R3, LR}
+    BX LR
+    ENDFUNC
+
+
+; ==============================Utility Functions==================================
 
 ; Function: get_random
 ; Inputs: R3 = max - 1
