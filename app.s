@@ -495,7 +495,7 @@ RECT_DRAW_LOOP
 ; All landscape
 ; R0 Has Start X
 ; R1 Has Start Y
-; R3 Has image address, first 8 bytes of an image contain width and height
+; R3 Has image address, first 16 bytes of an image contain width and height
 DRAW_IMAGE FUNCTION
     PUSH {R0-R7, LR}
     LDR R4, [R3], #4 ; Load width from image address
@@ -544,6 +544,66 @@ IMAGE_DRAW_LOOP
     POP {R0-R7, LR}
     BX LR
     ENDFUNC
+
+; Draw run length encoded image
+; All landscape
+; R0 Has Start X
+; R1 Has Start Y
+; R3 Has image address
+DRAW_RLE_IMAGE FUNCTION
+    PUSH {R0-R12, LR}
+    LDRH R7, [R3], #2 ; Read the count of repitions
+
+    LDRH R4, [R3], #2 ; Load width from image address
+    LDRH R5, [R3], #2 ; Load height from image address
+    
+    MOV R2, #0x2A ; Set Column Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R0, #8 ; Get high byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start X coordinate
+    AND R2, R0, #0xFF ; Get low byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start X coordinate
+    ADD R6, R4, R0
+    SUB R6, R6, #1 ; Calculate End X coordinate (Start X + Width - 1)
+    LSR R2, R6, #8 ; Get high byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End X coordinate
+    AND R2, R6, #0xFF ; Get low byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End X coordinate
+
+    MOV R2, #0x2B ; Set Page Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R1, #8 ; Get high byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start Y coordinate
+    ADD R6, R5, R1
+    SUB R6, R6, #1 ; Calculate End Y coordinate (Start Y + Height - 1)
+    LSR R2, R6, #8 ; Get high byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End Y coordinate
+    AND R2, R6, #0xFF ; Get low byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End Y coordinate 
+
+    MOV R2, #0x2C ; Memory Write command
+    BL TFT_COMMAND_WRITE
+
+OUTER_RLE_LOOP
+    LDRH R4, [R3], #2 ; Repition of the color
+    LDRH R0, [R3], #2
+INNER_RLE_LOOP
+    MOV R2, R0, LSR #8 ; Extract high byte
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R0, #0xFF ; Extract low byte
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+    SUB R4, R4, #1
+	CMP R4, #0
+    BNE INNER_RLE_LOOP
+    SUB R7, R7, #1
+	CMP R7, #0
+    BNE OUTER_RLE_LOOP
+
+    POP {R0-R12, LR}
+    BX LR
+ENDFUNC
 FILL_SCREEN FUNCTION
     PUSH {R1-R12, LR}
     ; Extract high and low bytes from R0 (COLOR)
@@ -762,13 +822,13 @@ DRAW_MENU FUNCTION
     LDR R1, [R1]
     MOV R3, #116
     MOV R4, #116
-    MOV R5, #0x265B
+    MOV R5, #0xF8F0
     BL DRAW_RECT
     ;Draw the game logo
     LDR R3, =PONG_LOGO
     MOV R0, #45
     MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =MAZE_LOGO
     MOV R0, #190
     MOV R1, #60
@@ -776,7 +836,7 @@ DRAW_MENU FUNCTION
     LDR R3, =SNAKE_LOGO
     MOV R0, #335
     MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =gamelogo
     MOV R0, #45
     MOV R1, #200
@@ -1100,7 +1160,7 @@ GAME1_START_MENU
     MOV R0, #190
     MOV R1, #40
     LDR R3, =PONG_LOGO
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =char_80
     MOV R0, #200
     MOV R1, #144
