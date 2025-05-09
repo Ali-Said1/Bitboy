@@ -53,7 +53,7 @@ def image_to_arm_asm(image_path, output_file):
         f.write(f"    DCD {height}\n")  # Image width and height
 
         for i, colorRun in enumerate(runLengthList):
-            f.write(f"    DCW {colorRun.count}, {colorRun.color}\n")
+            f.write(f"    DCW {colorRun.count}, #0x{colorRun.color:04X}\n")
             
 
         f.write(f"\n    END\n")
