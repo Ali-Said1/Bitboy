@@ -1,48 +1,40 @@
-    AREA GameConstants, DATA, READONLY
-    EXPORT BOARDSTARTX
-    EXPORT BOARDSTARTY
-    EXPORT BOARDENDX
-    EXPORT BOARDENDY
-    EXPORT ROW_Y_START
-    EXPORT ROW_ONE
-    EXPORT ROW_TWO
-    EXPORT COL_X_START
-    EXPORT COL_ONE
-    EXPORT COL_TWO
-    EXPORT ROW_OR_COL_WIDTH
-    EXPORT ROW_OR_COL_HEIGHT
-    EXPORT BOARD_DIM
 
 ;;;;;;;;;; BOARD WITH 1 PIXEL FRAME IN CASE COLOR INSIDE FRAME AND OUTSIDE ;;;;;;;;;;;;;;
-BOARDSTARTX      EQU     #0x0050
-BOARDSTARTY      EQU     #0x0000
-BOARDENDX        EQU     #0x0190
-BOARDENDY        EQU     #0x0140
+BOARDSTARTX      EQU     0x0050
+BOARDSTARTY      EQU     0x0000
+BOARDENDX        EQU     0x0190
+BOARDENDY        EQU     0x0140
 
 
 
 
 
 ;;;;;;;;;;; ROW START AT 81 ,EACH AT DISTANCE 106 ;;;;;;;;;;
-ROW_Y_START      EQU        #0x0001
-ROW_ONE          EQU        #0x00B8
-ROW_TWO          EQU        #0x0122
+ROW_Y_START      EQU        0x0001
+ROW_ONE          EQU        0x00B8
+ROW_TWO          EQU        0x0122
 
 
 ;;;;;;;;;;; COL START AT 81 ,EACH AT DISTANCE 106 ;;;;;;;;;;
-COL_X_START     EQU         #0x0051         
-COL_ONE         EQU         #0x0068
-COL_TWO         EQU         #0x00D2
+COL_X_START     EQU         0x0051         
+COL_ONE         EQU         0x0068
+COL_TWO         EQU         0x00D2
 
 ;;;;;;;;;;; ROW AND COL DIMENSIONS (NUMERICAL) ;;;;;;;;;;;;;;
-ROW_OR_COL_HEIGHT     EQU     #0x013E
-ROW_OR_COL_WIDTH      EQU     #0x0006
+ROW_OR_COL_HEIGHT     EQU     0x013E
+ROW_OR_COL_WIDTH      EQU     0x0006
 
-EMPTY_CELL    EQU     #0x0000
-PLAYER_X          EQU     #0x0001
-PLAYER_O          EQU     #0x0002
-BOARD_DIM       EQU     #0x0140
-    ALIGN
+EMPTY_CELL    EQU     0x0000
+PLAYER_X      EQU     0x0001
+PLAYER_O      EQU     0x0002
+BOARD_DIM     EQU     0x0140
+    
+
+        AREA VECTORS, CODE, READONLY
+        EXPORT  __Vectors
+__Vectors
+        DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
+        DCD     Reset_Handler       ; Reset handler address
 
 
     AREA GameData, DATA, READWRITE
@@ -57,52 +49,48 @@ CurrentPlayer   DCB     0x0     ; Current player (X=1, O=2)
 COUNTER         DCB   0x0       ; Counter for the number of moves made
 GAME_STATUS     DCB   0x0       ; Game status (0 =ongoing, 1 = X wins, 2 =O wins, 3 =draw)
 ACTIVE_CELL     DCB   0x0       ; Active cell (1-9)
+WINNER          DCB   0x0       ; Winner (1 = X, 2 = O, 0 = none)
     ALIGN
 
 
 
+
+    AREA MYCODE,CODE,READONLY
     EXPORT XO_MAIN
     EXPORT INIT_GAME
-    AREA MYCODE,CODE,READONLY
+    EXPORT Reset_Handler
     ENTRY
+Reset_Handler
+    BL XO_MAIN
 
 
 XO_MAIN     FUNCTION
 
-;DRAW BACKGROUND COLOR
-;DRAW ROWS & COLUMNS
+    ; DRAW BACKGROUND COLOR
+    ; DRAW ROWS & COLUMNS
 
     BL INIT_GAME
 
 MAIN_LOOP
-
     BL HANDLE_INPUT
 
-
-;;;;;;;;;;;;;;; CHECK FOR NO ONE HAS WON ;;;;;;;;;;;;;;;;;;
-;; TODO: this will be implemented in app.s
+    ;;;;;;;;;;;;;;; CHECK FOR NO ONE HAS WON ;;;;;;;;;;;;;;;;;;
     LDR R0, =GAME_STATUS
-    MOV R1, #0x0000
-    CMP R1,[R0]
+    LDRB R1, [R0]
+    CMP R1, #0
     BEQ MAIN_LOOP
 
-    LDR R0, =GAME_STATUS
-    MOV R1, #0x0001
-    CMP R1,[R0]        
-    BEQ X_WINS          ;FUNC X_WINS TO DISPLAY X WINS"NOT IMPLEMENTED"
+    CMP R1, #1
+    ; BEQ X_WINS          ; TODO: implement this (Display X Wins)
 
-    LDR R0, =GAME_STATUS
-    MOV R1, #0x0002
-    CMP R1,[R0]
-    BEQ O_WINS          ;FUNC O_WINS TO DISPLAY X WINS"NOT IMPLEMENTED"
+    CMP R1, #2
+    ; BEQ O_WINS          ; TODO: implement this (Display O Wins)
 
-    LDR R0, =GAME_STATUS
-    MOV R1, #0x0003
-    CMP R1,[R0]
-    BEQ D_DRAW              ;FUNC D_DRAW TO DISPLAY X WINS"NOT IMPLEMENTED"
+    CMP R1, #3
+    ; BEQ D_DRAW          ; TODO: implement this (Dsplay Draw)
 
-;;;;;;;;;;;;;;;;;;;;;;;;; HERE TO RESET ;;;;;;;;;;;;;;;;;;;;;;;
-
+    ;;;;;;;;;;;;;;;;;;;;;;;;; RESET OR HALT ;;;;;;;;;;;;;;;;;;;;;;
+    B .                   ; halt here
     ENDFUNC
 
 ;;;;;;;;;;;; Clear Data , Set start up Player to X , Set Ongoing Game ;;;;;;;;;;;;
@@ -129,7 +117,7 @@ INIT_DONE
     
     ;Set game status to ongoing
     LDR     R0, =GAME_STATUS
-    LDR     R1, =GAME_ONGOING
+    MOV     R1, #0
     STRB    R1, [R0]
 
     LDR     R0, =WINNER
@@ -146,174 +134,76 @@ INIT_DONE
     ENDFUNC
 
 ; TODO: Update this implementation
-; HANDLE_INPUT
-;     ;R2 >>> X-Coordinates
-;     ;R3 >>> Y-Coordinates
-;     ;R4 >>> Player_Num
-;     PUSH {R0-R12,LR}
-
-;     LDR R0, =CurrentPlayer
-;     LDR R1, =PLAYER_X
-;     CMP [R0],R1
-;     BEQ CHECK_DRAW_X
-
-;     LDR R0, =CurrentPlayer
-;     LDR R1, =PLAYER_X
-;     CMP [R0],R1
-;     BEQ CHECK_DRAW_O
-
-;     pop{R0-R12,PC}
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-CHECK_DRAW_X
+HANDLE_INPUT FUNCTION
+    
     PUSH {R0-R12,LR}
 
-    MOV R5,R2
-    MOV R6,R3
-
-    MOV R1,#0x0050
-    CMP R1,R2
-    BGE X_OUT_OF_RANGE
-    
-    MOV R1,#0x0051
-    SUB R2,R2,R1
-    MOV R1,#0x006A
-    UDIV R2,R2,R1       ;;;; R2 HORIZONTAL INDEX
-
-    CMP R3,#0x0001
-    BEQ THIRD_ROW
-
-    CMP R3,#0x006B
-    BEQ SECOND_ROW
-
-    CMP R3,#0x00D5
-    BEQ FIRST_ROW
-
-    B X_OUT_OF_RANGE
-
- ;;;; THIRD  0   1   2
- ;;;; SECOND 3   4   5
- ;;;; FIRST  6   7   8
-
-THIRD_ROW      
-
-    MOV R0 ,#0x0000      ;;;;; 1 FOR X
-    LDR R1, =GameBoard    
-    CMP R0,[R1,R2]
-    BNE X_OUT_OF_RANGE
-    MOV R0 ,#0x0001           
-    STR R0,[R1,R2]                 
-    B X_DONE
-
-SECOND_ROW
-
-    MOV R0 ,#0x0000 
-    LDR R1, =GameBoard
-    MOV R3,#0x0003
-    ADD R2 ,R2 ,R3
-    CMP R0,[R1,R2]
-    BNE X_OUT_OF_RANGE 
-    MOV R0 ,#0x0001
-    STR R0,[R1,R2]
-    B X_DONE
-
-FIRST_ROW
-
-    MOV R0 ,#0x0000
-    LDR R1, =GameBoard
-    MOV R3,#0x0006
-    ADD R2 ,R2 ,R3
-    CMP R0,[R1,R2]
-    BNE X_OUT_OF_RANGE 
-    MOV R0 ,#0x0001
-    STR R0,[R1,R2]
-    B X_DONE
-
-X_DONE
-    BL DRAW_X   ;;;;;;;;;;;;;;;;;HERE TO CALL REAL DRAW
     LDR R0, =CurrentPlayer
-    LDR R1, =PLAYER_O
-    STRB R1, [R0]
-X_OUT_OF_RANGE
-    pop{R0-R12,PC}
+    LDRB R1, [R0]
+    CMP R1, #1
+    BEQ CHECK_DRAW_X
 
+    LDR R0, =CurrentPlayer
+    LDRB R1, [R0]
+    CMP R1, #2
+    BEQ CHECK_DRAW_O
+
+    pop{R0-R12,PC}
+    ENDFUNC
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+CHECK_DRAW_X    FUNCTION
+    PUSH {R0-R12,LR}
+
+    LDR R1, =GameBoard
+    LDR R2, =ACTIVE_CELL
+    LDRB R3, [R2]            ; R3 = index
+    MOV R4, #0
+    ADD R4, R1, R3
+    LDR R0, =PLAYER_X
+    STRB R0,[R4] 
+
+    BL DRAW_X        ;;;;;;;;;;;;;;;;;HERE TO CALL REAL DRAW
+    LDR R0, =CurrentPlayer
+    MOV R1, #2
+    STRB R1, [R0]
+
+    pop{R0-R12,PC}
+    ENDFUNC
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-CHECK_DRAW_O
+CHECK_DRAW_O    FUNCTION
     PUSH {R0-R12,LR}
 
-    MOV R5,R2
-    MOV R6,R3
-
-    MOV R1,#0x0050
-    CMP R1,R2
-    BGE O_OUT_OF_RANGE
-    
-    MOV R1,#0x0051
-    SUB R2,R2,R1
-    MOV R1,#0x006A
-    UDIV R2,R2,R1       ;;;; R2 HORIZONTAL INDEX
-
-    CMP R3,#0x0001
-    BEQ THIRD_ROW
-
-    CMP R3,#0x006B
-    BEQ SECOND_ROW
-
-    CMP R3,#0x00D5
-    BEQ FIRST_ROW
-
-    B O_OUT_OF_RANGE
-
- ;;;; THIRD  0   1   2
- ;;;; SECOND 3   4   5
- ;;;; FIRST  6   7   8
-
-THIRD_ROW                           
-    MOV R0 ,#0x0000     ;;;;; 2 FOR O
     LDR R1, =GameBoard
-    CMP R0,[R1,R2]
-    BNE O_OUT_OF_RANGE  
-    MOV R0 ,#0x0002
-    STR R0,[R1,R2]                  
-    B O_DONE
+    LDR R2, =ACTIVE_CELL
+    LDRB R3, [R2]            ; R3 = index
+    MOV R4, #0
+    ADD R4, R1, R3
+    LDR R0, =PLAYER_O
+    STRB R0,[R4] 
 
-SECOND_ROW
-
-    MOV R0 ,#0x0000
-    LDR R1, =GameBoard
-    MOV R3,#0x0003
-    ADD R2 ,R2 ,R3
-    CMP R0,[R1,R2]
-    BNE O_OUT_OF_RANGE 
-    MOV R0 ,#0x0002
-    STR R0,[R1,R2]
-    B O_DONE
-
-FIRST_ROW
-
-    MOV R0 ,#0x0000
-    LDR R1, =GameBoard
-    MOV R3,#0x0006
-    ADD R2 ,R2 ,R3
-    CMP R0,[R1,R2]
-    BNE O_OUT_OF_RANGE 
-    MOV R0 ,#0x0002
-    STR R0,[R1,R2]
-    B O_DONE
-
-O_DONE
     BL DRAW_O        ;;;;;;;;;;;;;;;;;HERE TO CALL REAL DRAW
     LDR R0, =CurrentPlayer
-    LDR R1, =PLAYER_X
+    MOV R1, #1
     STRB R1, [R0]
-O_OUT_OF_RANGE
+
     pop{R0-R12,PC}
+    ENDFUNC
 
+DRAW_X  FUNCTION
 
-DRAW_X
+    PUSH{R0-R12,LR}
+    ;(1) - DRAW
+    
+    ;(2) - CHECK FOR WINNING 
+    BL CHECK_WINNING
+
+    POP{R0-R12,PC}
+    ENDFUNC
+
+DRAW_O  FUNCTION
 
     PUSH{R0-R12,LR}
     ;(1) - DRAW
@@ -325,28 +215,15 @@ DRAW_X
     BL CHECK_WINNING
 
     POP{R0-R12,PC}
-
-
-DRAW_O
-
-    PUSH{R0-R12,LR}
-    ;(1) - DRAW
-
-    ;R5 >>> X-Coordinates
-    ;R6 >>> Y-Coordinates
-    
-    ;(2) - CHECK FOR WINNING 
-    BL CHECK_WINNING
-
-    POP{R0-R12,PC}
+    ENDFUNC
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-CHECK_WINNING
+CHECK_WINNING   FUNCTION
     PUSH{R0-R12,LR}
 
     LDR R0,=COUNTER
     LDR R1, [R0]
-    CMP R1,#9
+    CMP R1, #9
     BNE CHECK_THIRD_ROW
     LDR R0,=GAME_STATUS
     MOV R1,#0x0003
@@ -354,149 +231,159 @@ CHECK_WINNING
     B DRAW_DONE
 
 CHECK_THIRD_ROW
-    LDR R0, =GameBoard
-    MOV R1,#0
-    MOV R2,#1
-    MOV R3,#2
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #0]       ; Load byte at offset 0
+    LDRB R2, [R0, #1]       ; Load byte at offset 1
+    LDRB R3, [R0, #2]       ; Load byte at offset 2
 
-    CMP [R0,R1],[R0,R2]
+
+    CMP R1, R2
     BNE CHECK_SECOND_ROW
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE CHECK_SECOND_ROW
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_SECOND_ROW
-    MOV R1,#3
-    MOV R2,#4
-    MOV R3,#5
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #3]       ; Load byte at offset 3
+    LDRB R2, [R0, #4]       ; Load byte at offset 4
+    LDRB R3, [R0, #5]       ; Load byte at offset 5
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE CHECK_FIRST_ROW
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE CHECK_FIRST_ROW
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_FIRST_ROW
-    MOV R1,#6
-    MOV R2,#7
-    MOV R3,#8
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #6]       ; Load byte at offset 6
+    LDRB R2, [R0, #7]       ; Load byte at offset 7
+    LDRB R3, [R0, #8]       ; Load byte at offset 8
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE CHECK_FIRST_COL
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE CHECK_FIRST_COL
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
     
 CHECK_FIRST_COL
-    MOV R1,#0
-    MOV R2,#3
-    MOV R3,#6
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #0]       ; Load byte at offset 0
+    LDRB R2, [R0, #3]       ; Load byte at offset 3
+    LDRB R3, [R0, #6]       ; Load byte at offset 6
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE CHECK_SECOND_COL
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE CHECK_SECOND_COL
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_SECOND_COL
-    MOV R1,#1
-    MOV R2,#4
-    MOV R3,#7
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #1]       ; Load byte at offset 1
+    LDRB R2, [R0, #4]       ; Load byte at offset 4
+    LDRB R3, [R0, #7]       ; Load byte at offset 7
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE CHECK_THIRD_COL
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE CHECK_THIRD_COL
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_THIRD_COL
-    MOV R1,#0
-    MOV R2,#3
-    MOV R3,#6
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #2]       ; Load byte at offset 2
+    LDRB R2, [R0, #5]       ; Load byte at offset 5
+    LDRB R3, [R0, #8]       ; Load byte at offset 8
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE TO_END
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE TO_END
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_FIRST_DIAG
-    MOV R1,#0
-    MOV R2,#4
-    MOV R3,#8
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #0]       ; Load byte at offset 0
+    LDRB R2, [R0, #4]       ; Load byte at offset 4
+    LDRB R3, [R0, #8]       ; Load byte at offset 8
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE CHECK_SECOND_DIAG
 
-    CMP [R0,R2],[R0,R3]
+    CMP R3, R2
     BNE CHECK_SECOND_DIAG
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
+    CMP R2, #2
+    BEQ O_IS_WINNING
 
 CHECK_SECOND_DIAG
-    MOV R1,#2
-    MOV R2,#4
-    MOV R3,#6
+    LDR R0, =GameBoard     ; Load base address
+    LDRB R1, [R0, #2]       ; Load byte at offset 2
+    LDRB R2, [R0, #4]       ; Load byte at offset 4
+    LDRB R3, [R0, #6]       ; Load byte at offset 6
 
-    CMP [R0,R1],[R0,R2]
+    CMP R1, R2
     BNE TO_END
 
-    CMP [R0,R2],[R0,R3]
+    CMP R2, R3
     BNE TO_END
 
-    MOV R3,#0x0001
-    CMP [R0,R2],R3
+    CMP R2, #1
     BEQ X_IS_WINNING
-    B O_IS_WINNING
-
+    CMP R2, #2
+    BEQ O_IS_WINNING
+    
+    B TO_END
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 X_IS_WINNING
     LDR R0, =WINNER
-    MOV R1,#0x0001
+    MOV R1,#1
     STRB R1,[R0]
     LDR R0,=GAME_STATUS
-    MOV R1,#0x0001
+    MOV R1, #1
     STRB R1,[R0]
     B TO_END
 
 O_IS_WINNING
     LDR R0, =WINNER
-    MOV R1,#0x0002
+    MOV R1,#2
     LDR R0,=GAME_STATUS
-    MOV R1,#0x0002
+    MOV R1, #2
     STRB R1,[R0]
     B TO_END
 
@@ -507,5 +394,6 @@ TO_END
     STR R1, [R0]
 DRAW_DONE
     POP{R0-R12,PC}
+    ENDFUNC
 
-END
+    END
