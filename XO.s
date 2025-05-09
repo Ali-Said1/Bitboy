@@ -337,6 +337,9 @@ TO_END
     CMP R1, #9
     BNE DRAW_DONE
     LDR R0,=GAME_STATUS
+    LDRB R2, [R0]
+    CMP R2, #0
+    BNE DRAW_DONE
     MOV R1,#3
     STRB R1,[R0]
 DRAW_DONE
