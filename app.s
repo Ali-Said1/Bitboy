@@ -365,85 +365,67 @@ DELAY_MS_LOOP
         ;========================================================================
 
 DRAW_CHAR FUNCTION
-        PUSH    {R6,R7,R8,R9,R10,R11,LR}
+    PUSH    {R6,R7,R8,R9,R10,R11,LR}
+	PUSH {R4, R5}
+    LDR R4, [R3], #4 ; Load width from image address
+    LDR R5, [R3], #4 ; Load height from image address
 
-        ;-- load glyph dimensions ---------------------------------------------
-        LDR     R6, [R3], #4      ; R6 = width
-        LDR     R7, [R3], #4      ; R7 = height
+    MOV R2, #0x2A ; Set Column Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R0, #8 ; Get high byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start X coordinate
+    AND R2, R0, #0xFF ; Get low byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start X coordinate
+    ADD R6, R4, R0
+    SUB R6, R6, #1 ; Calculate End X coordinate (Start X + Width - 1)
+    LSR R2, R6, #8 ; Get high byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End X coordinate
+    AND R2, R6, #0xFF ; Get low byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End X coordinate
 
-        ;-- set column address (0x2A) ----------------------------------------
-        MOV     R2, #0x2A
-        BL      TFT_COMMAND_WRITE
-
-        MOV     R2, R0, LSR #8    ; start X high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R0, #0xFF     ; start X low byte
-        BL      TFT_DATA_WRITE
-
-        ADD     R8, R0, R6        ; end X = startX + width
-        SUB     R8, R8, #1        ; end X -= 1
-        MOV     R2, R8, LSR #8    ; end X high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R8, #0xFF     ; end X low byte
-        BL      TFT_DATA_WRITE
-
-        ;-- set page (row) address (0x2B) -----------------------------------
-        MOV     R2, #0x2B
-        BL      TFT_COMMAND_WRITE
-
-        MOV     R2, R1, LSR #8    ; start Y high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R1, #0xFF     ; start Y low byte
-        BL      TFT_DATA_WRITE
-
-        ADD     R8, R1, R7        ; end Y = startY + height
-        SUB     R8, R8, #1        ; end Y -= 1
-        MOV     R2, R8, LSR #8    ; end Y high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R8, #0xFF     ; end Y low byte
-        BL      TFT_DATA_WRITE
-
-        ;-- memory write (0x2C) ----------------------------------------------
-        MOV     R2, #0x2C
-        BL      TFT_COMMAND_WRITE
-
-        ;-- draw pixels by expanding each bit of each row --------------------
-        MOV     R11, R7           ; row count
-
-ROW_LOOP
-        LDRH    R8, [R3], #2      ; fetch 16-bit row mask
-        MOV     R10, R6           ; column count
-        MOV     R9, #0x8000       ; bit mask = MSB
-
-PIXEL_LOOP
-        TST     R8, R9
-        BEQ     DRAW_BACKGROUND
-
-        ;-- draw foreground pixel -------------------------------------------
-        MOV     R2, R4, LSR #8    ; FG high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R4, #0xFF     ; FG low byte
-        BL      TFT_DATA_WRITE
-        B       PIXEL_NEXT
-
-DRAW_BACKGROUND
-        ;-- draw background pixel -------------------------------------------
-        MOV     R2, R5, LSR #8    ; BG high byte
-        BL      TFT_DATA_WRITE
-        AND     R2, R5, #0xFF     ; BG low byte
-        BL      TFT_DATA_WRITE
-
-PIXEL_NEXT
-        LSR     R9, R9, #1        ; shift mask
-        SUBS    R10, R10, #1      ; decrement column
-        BNE     PIXEL_LOOP
-
-        SUBS    R11, R11, #1      ; decrement row
-        BNE     ROW_LOOP
-
-        POP     {R6,R7,R8,R9,R10,R11,LR}
-        BX      LR
-        ENDFUNC
+    MOV R2, #0x2B ; Set Page Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R1, #8 ; Get high byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start Y coordinate
+    ADD R6, R5, R1
+    SUB R6, R6, #1 ; Calculate End Y coordinate (Start Y + Height - 1)
+    LSR R2, R6, #8 ; Get high byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End Y coordinate
+    AND R2, R6, #0xFF ; Get low byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End Y coordinate
+	POP {R4, R5}
+    MOV R2, #0x2C ; Memory Write command
+    BL TFT_COMMAND_WRITE
+    MOV R6, #8
+CHAR_ROW_LOOP
+    LDR R7, [R3], #4
+    ROR R7, #16
+    MOV R8, #32
+CHAR_COLUMN_LOOP
+    LSLS R7, #1
+    BCS CHAR_DRAW_TXT
+    MOV R2, R5, LSR #8 ; Extract high byte
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R5, #0xFF ; Extract low byte
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+    B CHAR_COLUMN_CHECK
+CHAR_DRAW_TXT
+    MOV R2, R4, LSR #8 ; Extract high byte
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R4, #0xFF ; Extract low byte
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+CHAR_COLUMN_CHECK
+    SUB R8, R8, #1
+    CMP R8, #0
+    BNE CHAR_COLUMN_LOOP
+    SUB R6, R6, #1
+    CMP R6, #0
+    BNE CHAR_ROW_LOOP
+    POP     {R6,R7,R8,R9,R10,R11,LR}
+    BX      LR
+    ENDFUNC
 ;@@@@@@@@@@@@@@@DRAW RECT
 ; All landscape
 ; R0 Has Start X
@@ -603,7 +585,7 @@ INNER_RLE_LOOP
 
     POP {R0-R12, LR}
     BX LR
-ENDFUNC
+	ENDFUNC
 FILL_SCREEN FUNCTION
     PUSH {R1-R12, LR}
     ; Extract high and low bytes from R0 (COLOR)
