@@ -410,11 +410,6 @@
               <FilePath>.\fonts.s</FilePath>
             </File>
             <File>
-              <FileName>pongimages.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>.\pongimages.s</FilePath>
-            </File>
-            <File>
               <FileName>MAZE.s</FileName>
               <FileType>2</FileType>
               <FilePath>.\MAZE.s</FilePath>
@@ -433,6 +428,11 @@
               <FileName>SNAKE_IMG.s</FileName>
               <FileType>2</FileType>
               <FilePath>.\SNAKE_IMG.s</FilePath>
+            </File>
+            <File>
+              <FileName>PONG_IMG.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\PONG_IMG.s</FilePath>
             </File>
           </Files>
         </Group>

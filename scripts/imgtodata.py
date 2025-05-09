@@ -47,6 +47,6 @@ def image_to_arm_asm(image_path, output_file, BGR=False):
 
 # Choose BGR or RGB depending on hardware
 #  or just try both
-image_to_arm_asm(image_path="./assets/snake_logo.png",
-                 output_file="SNAKE_IMG.s",
+image_to_arm_asm(image_path="./assets/sanke.png",
+                 output_file="sankeimg.s",
                  BGR=False)
