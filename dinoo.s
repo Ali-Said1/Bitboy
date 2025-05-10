@@ -6,7 +6,7 @@ GROUND_Y       EQU      280
 DINO_START_X   EQU      20
 DINO_START_Y   EQU      180
 NORMAL_DINO_H  EQU      100
-DISTANCE_MOVED EQU      10
+DISTANCE_MOVED EQU      20
 
     AREA    VECTORS, CODE, READONLY
     EXPORT  __Vectors
@@ -43,9 +43,10 @@ __Vectors
     EXPORT sys_time
 	EXPORT JUMP_CONDITION
 DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
+    ALIGN 2
 DINO_X  DCW 20
 DINO_Y  DCW 180
-DINO_W DCW 20
+DINO_W DCW 40
 DINO_H DCW 100
 
 LAST_SYS_TIME_1 DCW 0
@@ -111,7 +112,7 @@ Reset_Handler
 
     ;intialize dino object width
     LDR     R0,=DINO_W
-    MOV     R1,#20 
+    MOV     R1,#40 
     STRH    R1,[R0]
     ;intialize dino object height
     LDR     R0,=DINO_H
@@ -127,9 +128,10 @@ Reset_Handler
     MOV     R1,#0
     STRB    R1,[R0]
 
+    LTORG
     
 game_loop
-    BL USER_Jump ;check if jump button pressed
+    BL USER_CROUCH
     BL check_for_objects ;spawn objects if needed
     BL move_object ;move Obstacle
     LDR R0, =DINO_X
@@ -137,10 +139,13 @@ game_loop
     BL check_collision   
 
     LDR R4,=DINOSTATE
-	LDRB R4,[R4]
+    LDRB R4,[R4]
     CMP R4, #1
     BLEQ JUMP_DINO
-
+    CMP R4, #2
+    BLEQ START_CROUCH
+    
+    BL USER_WALK
     CMP R3, #0
     BNE game_over
     
@@ -153,7 +158,9 @@ game_loop
     BL check_collision
     CMP R3, #0
     BNE game_over
-    
+
+    BL check_for_despawn
+
     LDR R0, =sys_time
     LDRH R1, [R0]
     ADD R1, R1, #1
@@ -162,9 +169,12 @@ game_loop
     
     ;BL check_for_despawn
     B game_loop
-    
+    LTORG
 game_over
-    B game_over
+
+    ; Reset game state
+    BL Reset_Handler
+    B game_loop
 
 USER_Jump
     PUSH {R0-R12 , LR}
@@ -180,11 +190,13 @@ JUMP_DINO
     LDRB R1, [R0]
     CMP R1, #0
     BEQ jump_dino_up
-    CMP R0, #1
+    CMP R1, #1
     BEQ jump_dino_down
-    CMP R0, #2
+    CMP R1, #2
     BEQ DELAY_JUMP
     B end_jump_dino
+
+    LTORG
 
 condition_delay
     LDR R2, =JUMP_CONDITION
@@ -201,7 +213,7 @@ condition_down
 jump_dino_up
     LDR R0,=DINO_Y
     LDRH R1, [R0]
-    SUB R1, R1, #1
+    SUB R1, R1, #4
     STRH R1, [R0]
     CMP R1, #50
     BEQ condition_delay
@@ -221,7 +233,7 @@ DELAY_JUMP
 jump_dino_down
     LDR R0,=DINO_Y
     LDRH R1, [R0]
-    ADD R1, R1, #1
+    ADD R1, R1, #4
     STRH R1, [R0]
     CMP R1, #180
     BEQ end_jump_dino
@@ -229,13 +241,103 @@ jump_dino_down
 
 
 end_jump_dino
+
     LDR R0, =DINOSTATE
-    LDRB R1, [R0]
     MOV R2, #0
-    STRB R1,[R1]
+    STRB R2,[R0]
+    LDR R0, =JUMP_CONDITION
+    MOV R2, #0
+    STRB R2,[R0]
+    LDR R0, =DELAY
+    MOV R1, #20
+    STRH R1, [R0]
+
+
     POP {R0-R12 , LR}
     BX LR
 
+USER_WALK
+
+    PUSH {R0-R2 , LR}
+    LDR R0,=DINOSTATE
+    LDRB R1, [R0]
+    CMP R1, #2
+    BLEQ end_CROUCH
+    MOV R2, #0
+    STRB R2,[R0]
+    POP {R0-R2 , LR}
+    BX LR
+
+    
+USER_CROUCH
+
+    PUSH {R0-R2 , LR}
+    LDR R0,=DINOSTATE
+    MOV R2, #2
+    STRB R2,[R0]
+    POP {R0-R2 , LR}
+    BX LR
+   
+
+START_CROUCH
+    PUSH {R0-R12 , LR}
+
+    LDR R0,=DINO_Y
+    MOV R2, #220
+    STRH R2, [R0]
+    BX LR
+
+end_CROUCH
+    PUSH {R0-R12 , LR}
+    LDR R0,=DINO_Y
+    MOV R2, #180
+    STRH R2, [R0]
+    POP {R0-R12 , LR}
+
+    BX LR
+
+
+check_for_despawn
+    PUSH {R0-R12, LR}
+    LDR R0, =OB1_ACTIVE
+    LDRB R1, [R0]           ; Load OB1_ACTIVE
+    CMP R1, #1              ; Is OB1 active?
+    BNE check_ob2_despawn   ; If not, skip to OB2
+    LDR R2, =OB1_X
+    LDRH R3, [R2]           ; Load OB1_X
+    CMP R3, #0              ; Is OB1_X < 0?
+    BGT check_ob2_despawn   ; If not, skip to OB2
+    MOV R1, #0
+    STRB R1, [R0]           ; Deactivate OB1 (OB1_ACTIVE = 0)
+
+check_ob2_despawn
+
+    LDR R0, =OB2_ACTIVE
+    LDRB R1, [R0]           ; Load OB1_ACTIVE
+    CMP R1, #1              ; Is OB1 active?
+    BNE check_ob3_despawn   ; If not, skip to OB2
+    LDR R2, =OB2_X
+    LDRH R3, [R2]           ; Load OB1_X
+    CMP R3, #0              ; Is OB1_X < 0?
+    BGT check_ob3_despawn   ; If not, skip to OB2
+    MOV R1, #0
+    STRB R1, [R0]           ; Deactivate OB1 (OB1_ACTIVE = 0)
+
+check_ob3_despawn
+    LDR R0, =OB3_ACTIVE
+    LDRB R1, [R0]           ; Load OB1_ACTIVE
+    CMP R1, #1              ; Is OB1 active?
+    BNE end_despawn   ; If not, skip to OB2
+    LDR R2, =OB3_X
+    LDRH R3, [R2]           ; Load OB1_X
+    CMP R3, #0              ; Is OB1_X < 0?
+    BGT end_despawn   ; If not, skip to OB2
+    MOV R1, #0
+    STRB R1, [R0]           ; Deactivate OB1 (OB1_ACTIVE = 0)
+
+end_despawn
+    POP {R0-R12, LR}
+    BX LR
 
 
 check_for_objects
