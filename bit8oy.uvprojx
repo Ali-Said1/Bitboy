@@ -439,6 +439,11 @@
               <FileType>2</FileType>
               <FilePath>.\XO.s</FilePath>
             </File>
+            <File>
+              <FileName>XO_IMAGE.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\XO_IMAGE.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
