@@ -141,6 +141,7 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT SNAKE_LOGO
     ;===============================END Snake Imports================================
     ;===============================Start XO Imports================================
+    IMPORT XO_LOGO
     IMPORT GameBoard
     IMPORT GAME_STATUS
     IMPORT ACTIVE_CELL
@@ -888,15 +889,15 @@ DRAW_MENU FUNCTION
     LDR R3, =MAZE_LOGO
     MOV R0, #190
     MOV R1, #60
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =SNAKE_LOGO
     MOV R0, #335
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
-    LDR R3, =gamelogo
+    LDR R3, =XO_LOGO
     MOV R0, #45
     MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =gamelogo
     MOV R0, #190
     MOV R1, #200
@@ -1722,7 +1723,7 @@ DRAW_GAME2 FUNCTION
     MOV R0, #0x00
     MOV R1, #5
     LDR R3, =MAZE_LOGO
-    BL DRAW_IMAGE ; Draw the logo
+    BL DRAW_RLE_IMAGE ; Draw the logo
     LDR R0, =SysTick_BASE
     LDR R1, =SysTick_CURRENT_VALUE_OFFSET
     ADD R0, R0, R1

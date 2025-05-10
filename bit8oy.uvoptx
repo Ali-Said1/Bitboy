@@ -152,25 +152,41 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>333</LineNumber>
+          <LineNumber>1724</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134230084</Address>
+          <Address>134225282</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>1</BreakIfRCount>
+          <Filename>.\app.s</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\bit8oy\app.s\1724</Expression>
+        </Bp>
+        <Bp>
+          <Number>1</Number>
+          <Type>0</Type>
+          <LineNumber>333</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>0</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>0</BreakIfRCount>
           <Filename>.\XO.s</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\bit8oy\XO.s\333</Expression>
+          <Expression></Expression>
         </Bp>
       </Breakpoint>
       <MemoryWindow1>
         <Mm>
           <WinNumber>1</WinNumber>
           <SubType>0</SubType>
-          <ItemText>&amp;GAME_STATUS</ItemText>
+          <ItemText>&amp;MAZE_WALL</ItemText>
           <AccSizeX>0</AccSizeX>
         </Mm>
       </MemoryWindow1>
@@ -361,6 +377,18 @@
       <bDave2>0</bDave2>
       <PathWithFileName>.\XO.s</PathWithFileName>
       <FilenameWithoutPath>XO.s</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>1</GroupNumber>
+      <FileNumber>12</FileNumber>
+      <FileType>2</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>.\XO_IMAGE.s</PathWithFileName>
+      <FilenameWithoutPath>XO_IMAGE.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
