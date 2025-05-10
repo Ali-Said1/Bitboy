@@ -41,20 +41,18 @@ __Vectors
     EXPORT OB3_W
     EXPORT OB3_H
     EXPORT sys_time
-	EXPORT DINO_VELOCITY
-
-DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking
+	EXPORT JUMP_CONDITION
+DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
 DINO_X  DCW 20
 DINO_Y  DCW 180
 DINO_W DCW 20
 DINO_H DCW 100
-DINO_VELOCITY DCW 0
-ACC          DCB      -2
 
 LAST_SYS_TIME_1 DCW 0
 LAST_SYS_TIME_2 DCW 0
 LAST_SPAWN_TIME  DCW 0
-
+JUMP_CONDITION DCB 0 ;0 up, 1 down 2 delay
+DELAY DCW 20
 ;##########################Obstacle 1
 OB1_TYPE DCB 0
 OB1_ACTIVE DCB 0   
@@ -119,21 +117,29 @@ Reset_Handler
     LDR     R0,=DINO_H
     MOV     R1,#NORMAL_DINO_H          
     STRH    R1,[R0]
-    ;intialize jumping velocity
-    LDR     R0,=DINO_VELOCITY
-    MOV     R1,#0
+    ;intialize delay
+    LDR     R0,=DELAY
+    MOV     R1,#20
     STRH    R1,[R0]
-    LTORG
+
+    ;intialize jump condition
+    LDR     R0,=JUMP_CONDITION
+    MOV     R1,#0
+    STRB    R1,[R0]
+
     
 game_loop
-    BL JUMP_DINO
-    BL UPDATE_POSITION ;update dino position
-    BL UPDATE_VELOCITY ;update dino velocity
+    BL USER_Jump ;check if jump button pressed
     BL check_for_objects ;spawn objects if needed
     BL move_object ;move Obstacle
     LDR R0, =DINO_X
     LDR R1, =OB1_X
     BL check_collision   
+
+    LDR R4,=DINOSTATE
+	LDRB R4,[R4]
+    CMP R4, #1
+    BLEQ JUMP_DINO
 
     CMP R3, #0
     BNE game_over
@@ -160,117 +166,78 @@ game_loop
 game_over
     B game_over
 
-UPDATE_POSITION
+USER_Jump
     PUSH {R0-R12 , LR}
-    LDR R0, =LAST_SYS_TIME_1
-    LDRH R0, [R0]            ; Load the value of sys_time
-    LDR R1, =sys_time
-    LDRH R1, [R1]            ; Load the value of sys_time
-    SUB R1, R1, R0          ;R1 = sys_time - LAST_SYS_TIME_1
-    LDR R2,=DINO_VELOCITY
-    LDRH R2, [R2]            ; Load the value of velocity
-    CMP R2, #0
-    BEQ end_update_position
-    MOV R3, #1000
-    UDIV R3,R3,R2
-    CMP R1, R3
-    BLT end_update_position
-    LDR R0, =DINO_Y
-    LDRH R4, [R0]            ; Load the value of dino_y
-    TST   R2, #0x80000000
-    BEQ GOING_UP             ;if velocity is negative
-    ADD R4, R4, #1
-    STRH R4, [R0]           ; Update dino_y
-GOING_UP
-    MVN R2,R2
-    ADD R2, R2, #1
-    SUB R4, #1
-    STRH R4, [R0]           ; Update dino_y
-
-
-end_update_position
-    LDR R0, =DINO_Y
-    LDRH R1,[R0]
-    ADD R1,R1,#NORMAL_DINO_H
-    CMP R1,#GROUND_Y
-    BNE return_to_game_loop
-    LDR R0, =DINO_VELOCITY
-    LDR R2,=ACC
-    MOV R1,#0
-    STRH R1,[R0]           ; Update VEL_y
-    STRH R2,[R0]            ; Update ACC_y
-           ; Update LAST_SYS_TIME_1
-
-
-
-return_to_game_loop
-
-	LDR R0,=LAST_SYS_TIME_1
-    LDR R2,=sys_time
-    LDRH R2,[R2]
-    STRH R2,[R0]     
-    POP {R0-R12 , LR}
-    BX LR
-    LTORG
-
-UPDATE_VELOCITY
-    PUSH {R0-R12 , LR}
-    LDR R0, =LAST_SYS_TIME_2
-    LDRH R0, [R0]            ; Load the value of sys_time
-    LDR R1, =sys_time
-    LDRH R1, [R1]            ; Load the value of sys_time
-    SUB R1, R1, R0          ;R1 = sys_time - LAST_SYS_TIME_1
-    LDR R2,=ACC
-    LDRH R2, [R2]            ; Load the value of velocity
-    CMP R2, #0
-    BEQ end_update_velocity
-    MOV R3, #1000
-    UDIV R3,R3,R2
-    CMP R1, R3
-    BLT end_update_velocity
-    LDR R0, =DINO_VELOCITY
-    LDRH R4, [R0]            ; Load the value of dino_y
-    TST   R2, #0x80000000
-    BEQ ACCNEG             ;if ACC is negative
-    ADD R4, R4, #1
-    STRH R4, [R0]           ; Update dino_y
-
-ACCNEG
-    MVN R2,R2
-    ADD R2, R2, #1
-    SUB R4, #1
-    STRH R4, [R0]           ; Update dino_y
-
-
-end_update_velocity
-
-    LDR R0,=LAST_SYS_TIME_2
-    LDR R2,=sys_time
-    LDRH R2,[R2]
-    STRH R2,[R0]            ; Update LAST_SYS_TIME_1
+    LDR R0,=DINOSTATE
+    MOV R2, #1
+    STRB R2,[R0]
     POP {R0-R12 , LR}
     BX LR
 
 JUMP_DINO
-
     PUSH {R0-R12 , LR}
-    LDR R0, =DINO_Y
-    LDRH R1,[R0]
-    ADD R1,R1,#NORMAL_DINO_H
-    CMP R1,#GROUND_Y
-    BNE return_to_JUMP_DINO
-    LDR R0, =DINO_VELOCITY
-    LDR R2,=ACC
-    MOV R1,#23
-    STRH R1,[R0]           ; Update VEL_y
-    MOV R1,#-2
-    STRH R1,[R2]            ; Update ACC_y
+    LDR R0, =JUMP_CONDITION
+    LDRB R1, [R0]
+    CMP R1, #0
+    BEQ jump_dino_up
+    CMP R0, #1
+    BEQ jump_dino_down
+    CMP R0, #2
+    BEQ DELAY_JUMP
+    B end_jump_dino
 
-return_to_JUMP_DINO
+condition_delay
+    LDR R2, =JUMP_CONDITION
+    mov R3, #2
+    STRB R3, [R2]
+    BX LR
 
+condition_down
+    LDR R2, =JUMP_CONDITION
+    mov R3, #1
+    STRB R3, [R2]
+    BX LR
+
+jump_dino_up
+    LDR R0,=DINO_Y
+    LDRH R1, [R0]
+    SUB R1, R1, #1
+    STRH R1, [R0]
+    CMP R1, #50
+    BEQ condition_delay
+     BX LR
+
+
+DELAY_JUMP
+    LDR R0, =DELAY
+    LDRH R1, [R0]
+    SUB R1, R1, #1
+    STRH R1, [R0]
+    CMP R1, #0
+    BEQ condition_down
+    BX LR
+
+
+jump_dino_down
+    LDR R0,=DINO_Y
+    LDRH R1, [R0]
+    ADD R1, R1, #1
+    STRH R1, [R0]
+    CMP R1, #180
+    BEQ end_jump_dino
+     BX LR
+
+
+end_jump_dino
+    LDR R0, =DINOSTATE
+    LDRB R1, [R0]
+    MOV R2, #0
+    STRB R1,[R1]
     POP {R0-R12 , LR}
     BX LR
-    
+
+
+
 check_for_objects
     PUSH {R0-R12 , LR}
 
