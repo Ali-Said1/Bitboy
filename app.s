@@ -140,6 +140,22 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
     IMPORT SNAKE_RESET
     IMPORT SNAKE_LOGO
     ;===============================END Snake Imports================================
+    ;===============================Start XO Imports================================
+    IMPORT GameBoard
+    IMPORT GAME_STATUS
+    IMPORT ACTIVE_CELL
+    IMPORT BOARD_DIM
+    IMPORT XO_O_COLOR
+    IMPORT XO_X_COLOR
+    IMPORT XO_HOVER_COLOR
+    IMPORT XO_WALL_COLOR
+    IMPORT XO_BCK_COLOR
+    IMPORT XO_INIT_GAME
+    IMPORT CHECK_DRAW_X
+    IMPORT CHECK_DRAW_O
+    IMPORT CHECK_WINNING
+    IMPORT CurrentPlayer
+    ;===============================END XO Imports================================
 	IMPORT MODULO
     AREA MYCODE, CODE, READONLY
 
@@ -151,9 +167,9 @@ __main FUNCTION
     BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
     LDR R0, =0x0000 ; Load the color value
     BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
-	BL RESET_MENU
+    BL RESET_MENU
     BL PONG_RESET
-    BL SNAKE_RESET ; TODO: snake
+    BL SNAKE_RESET
 	BL DRAW_MENU
     LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
 	MOV R11, #0
@@ -635,148 +651,206 @@ TFT_Loop
     POP {R1-R12, LR}
     BX LR
     ENDFUNC
-; DRAW_DIAGONAL_LINE Function for ILI9486 TFT Display
-; 
+; Function to draw an X shape
 ; Parameters:
 ; R0 = Start X coordinate
 ; R1 = Start Y coordinate
-; R2 = End X coordinate
-; R3 = End Y coordinate
-; R4 = Line thickness (in pixels)
-; R5 = Color (16-bit RGB565 format)
-;
-; Uses the Bresenham line algorithm with thickness support
+; R4 = Thickness
+; R5 = Color
+DRAW_X FUNCTION
+    PUSH {R0-R12, LR}
+    
+    ; Save initial parameters
+    MOV R6, R0  ; Save start X
+    MOV R7, R1  ; Save start Y
+    MOV R8, R4  ; Save thickness
+    MOV R9, R5  ; Save color
+    
+    ; Draw first diagonal (top-left to bottom-right)
+    MOV R10, #0      ; Counter for position
+DIAGONAL1_LOOP
+    MOV R0, R6       ; Load original X
+    ADD R0, R0, R10  ; Add counter to X
+    
+    MOV R1, R7       ; Load original Y
+    ADD R1, R1, R10  ; Add counter to Y
+    
+    ; Draw a square at current position
+    MOV R3, R8       ; Width = thickness
+    MOV R4, R8       ; Height = thickness
+    MOV R5, R9       ; Color
+    PUSH {R10}
+    BL DRAW_RECT
+    POP {R10}
+    
+    ADD R10, R10, #2  ; Move to next position
+    CMP R10, #90     ; Check if we've reached the end
+    BLT DIAGONAL1_LOOP
+    
+    ; Draw second diagonal (top-right to bottom-left)
+    MOV R10, #0      ; Reset counter
+DIAGONAL2_LOOP
+    MOV R0, R6       ; Load original X
+    ADD R0, R0, #90  ; Start from right side
+    SUB R0, R0, R10  ; Move left as we go down
+    
+    MOV R1, R7       ; Load original Y
+    ADD R1, R1, R10  ; Move down
+    
+    ; Draw a square at current position
+    MOV R3, R8       ; Width = thickness
+    MOV R4, R8       ; Height = thickness
+    MOV R5, R9       ; Color
+    PUSH {R10}
+    BL DRAW_RECT
+    POP {R10}
+    
+    ADD R10, R10, #2  ; Move to next position
+    CMP R10, #90     ; Check if we've reached the end
+    BLT DIAGONAL2_LOOP
+    
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+; ----------------------------------------------------------------------------
+; DRAW_CIRCLE (filled)
+;  R6 = center X
+;  R7 = center Y
+;  R8 = radius
+;  R9 = color (RGB565)
+; ----------------------------------------------------------------------------
+DRAW_CIRCLE
+    PUSH    {R0-R12, LR}
 
-DRAW_DIAGONAL_LINE FUNCTION
-    PUSH {R4-R11, LR}        ; Save registers
-    
-    ; Save parameters to working registers
-    MOV R6, R0               ; R6 = x1 (start X)
-    MOV R7, R1               ; R7 = y1 (start Y)
-    MOV R8, R2               ; R8 = x2 (end X)
-    MOV R9, R3               ; R9 = y2 (end Y)
-    MOV R10, R4              ; R10 = thickness
-    MOV R11, R5              ; R11 = color
-    
-    ; Calculate delta values
-    SUB R0, R8, R6           ; dx = x2 - x1
-    BL ABS                   ; Get absolute value
-    MOV R4, R0               ; R4 = abs(dx)
-    
-    SUB R0, R9, R7           ; dy = y2 - y1
-    BL ABS                   ; Get absolute value
-    MOV R5, R0               ; R5 = abs(dy)
-    
-    ; Determine which coordinate changes faster
-    CMP R4, R5               ; Compare dx and dy
-    ITE GE                   ; If-Then-Else (GE: Greater than or Equal)
-    MOVGE R0, #1             ; If dx >= dy, step x by 1
-    MOVLT R0, #0             ; If dx < dy, step y by 1
-    
-    ; Determine direction
-    CMP R6, R8               ; Compare x1 and x2
-    ITE LT                   ; If-Then-Else (LT: Less Than)
-    MOVLT R1, #1             ; If x1 < x2, increment x
-    MOVGE R1, #-1            ; If x1 >= x2, decrement x
-    
-    CMP R7, R9               ; Compare y1 and y2
-    ITE LT                   ; If-Then-Else (LT: Less Than)
-    MOVLT R2, #1             ; If y1 < y2, increment y
-    MOVGE R2, #-1            ; If y1 >= y2, decrement y
-    
-    ; Main drawing loop
-    CMP R4, R5               ; Compare dx and dy again
-    BGE DRAW_X_DOMINANT      ; If dx >= dy, x changes faster
-    B DRAW_Y_DOMINANT        ; If dx < dy, y changes faster
-    
-DRAW_X_DOMINANT
-    MOV R0, R4               ; err = dx (using R0 as error accumulator)
-    LSR R0, R0, #1           ; err = dx/2
-    
-X_DOMINANT_LOOP
-    ; Draw a thick point at the current position
-    BL DRAW_THICK_POINT
-    
-    ; Exit condition
-    CMP R6, R8               ; Compare current x to end x
-    BEQ X_DOMINANT_EXIT      ; If equal, we're done
-    
-    ; Update error and position
-    SUB R0, R0, R5           ; err -= dy
-    CMP R0, #0               ; Check if error < 0
-    ITT LT                   ; If-Then-Then (LT: Less Than)
-    ADDLT R7, R7, R2         ; If error < 0, update y: y += sy
-    ADDLT R0, R0, R4         ; If error < 0, update error: err += dx
-    
-    ADD R6, R6, R1           ; x += sx (always move in x direction)
-    B X_DOMINANT_LOOP        ; Continue loop
-    
-X_DOMINANT_EXIT
-    B DRAW_LINE_EXIT
-    
-DRAW_Y_DOMINANT
-    MOV R0, R5               ; err = dy (using R0 as error accumulator)
-    LSR R0, R0, #1           ; err = dy/2
-    
-Y_DOMINANT_LOOP
-    ; Draw a thick point at the current position
-    BL DRAW_THICK_POINT
-    
-    ; Exit condition
-    CMP R7, R9               ; Compare current y to end y
-    BEQ Y_DOMINANT_EXIT      ; If equal, we're done
-    
-    ; Update error and position
-    SUB R0, R0, R4           ; err -= dx
-    CMP R0, #0               ; Check if error < 0
-    ITT LT                   ; If-Then-Then (LT: Less Than)
-    ADDLT R6, R6, R1         ; If error < 0, update x: x += sx
-    ADDLT R0, R0, R5         ; If error < 0, update error: err += dy
-    
-    ADD R7, R7, R2           ; y += sy (always move in y direction)
-    B Y_DOMINANT_LOOP        ; Continue loop
-    
-Y_DOMINANT_EXIT
-    B DRAW_LINE_EXIT
-    
-DRAW_LINE_EXIT
-    POP {R4-R11, LR}         ; Restore registers
-    BX LR                    ; Return
+    ;— load parameters into R0–R3
+    MOV     R0, R6      ; xc
+    MOV     R1, R7      ; yc
+    MOV     R2, R8      ; r
+    MOV     R3, R9      ; color
+
+    ;— save center and color for use in loop
+    MOV     R8, R0      ; save xc in R8
+    MOV     R9, R1      ; save yc in R9
+
+    ;— init midpoint vars
+    MOV     R4, #0      ; x = 0
+    MOV     R5, R2      ; y = r
+    ; d = 3 - 2*r
+    MOV     R7, #3
+    SUB     R7, R7, R2, LSL #1
+
+CIRCLE_LOOP
+    ;— fill spans at y-offset = ±y
+    ;  row = yc + y
+    ADD     R1, R9, R5
+    ;  xstart = xc - x
+    SUB     R0, R8, R4
+    ;  xend   = xc + x
+    ADD     R2, R8, R4
+    BL      DRAW_HLINE
+    ;  row = yc - y
+    SUB     R1, R9, R5
+    BL      DRAW_HLINE
+
+    ;— if x != y, also fill spans at ±x
+    CMP     R4, R5
+    BEQ     SKIP_SWAP
+    ;  row = yc + x
+    ADD     R1, R9, R4
+    ;  xstart = xc - y
+    SUB     R0, R8, R5
+    ;  xend   = xc + y
+    ADD     R2, R8, R5
+    BL      DRAW_HLINE
+    ;  row = yc - x
+    SUB     R1, R9, R4
+    BL      DRAW_HLINE
+SKIP_SWAP
+
+    ;— update decision parameter
+    CMP     R7, #0
+    BLT     D_NEG
+    SUB     R7, R7, R5, LSL #2
+    ADD     R7, R7, #4
+    SUB     R5, R5, #1        ; y--
+D_NEG
+    ADD     R7, R7, R4, LSL #2
+    ADD     R7, R7, #6
+    ADD     R4, R4, #1        ; x++
+
+    CMP     R4, R5
+    BLE     CIRCLE_LOOP
+
+    POP     {R0-R12, LR}
+    BX      LR
+
+; ----------------------------------------------------------------------------
+; DRAW_HLINE: draw a horizontal line from Xstart (R0) to Xend (R2) at row Y (R1)
+;  R3 = color (RGB565)
+; ----------------------------------------------------------------------------
+DRAW_HLINE
+    PUSH    {R0-R12, LR}
+    MOV     R4, R0      ; curX = Xstart
+    ; color in R3, row in R1, Xend in R2
+
+HLINE_LOOP
+    MOV     R0, R4
+    MOV     R1, R1      ; row
+    MOV     R12, R3     ; color
+    BL      DRAW_PIXEL
+
+    ADD     R4, R4, #1
+    CMP     R4, R2
+    BLE     HLINE_LOOP
+
+    POP     {R0-R12, LR}
+    BX      LR
+
+; ----------------------------------------------------------------------------
+; DRAW_PIXEL (unchanged)
+;  R0 = X, R1 = Y, R12 = color
+; ----------------------------------------------------------------------------
+DRAW_PIXEL
+    PUSH    {R0-R12, LR}
+
+    ;— set column address (0x2A)
+    MOV     R2, #0x2A
+    BL      TFT_COMMAND_WRITE
+    LSR     R2, R0, #8
+    BL      TFT_DATA_WRITE
+    AND     R2, R0, #0xFF
+    BL      TFT_DATA_WRITE
+    LSR     R2, R0, #8
+    BL      TFT_DATA_WRITE
+    AND     R2, R0, #0xFF
+    BL      TFT_DATA_WRITE
+
+    ;— set page address (0x2B)
+    MOV     R2, #0x2B
+    BL      TFT_COMMAND_WRITE
+    LSR     R2, R1, #8
+    BL      TFT_DATA_WRITE
+    AND     R2, R1, #0xFF
+    BL      TFT_DATA_WRITE
+    LSR     R2, R1, #8
+    BL      TFT_DATA_WRITE
+    AND     R2, R1, #0xFF
+    BL      TFT_DATA_WRITE
+
+    ;— memory write (0x2C)
+    MOV     R2, #0x2C
+    BL      TFT_COMMAND_WRITE
+
+    ;— pixel color
+    LSR     R2, R12, #8
+    BL      TFT_DATA_WRITE
+    AND     R2, R12, #0xFF
+    BL      TFT_DATA_WRITE
+
+    POP     {R0-R12, LR}
+    BX      LR
     ENDFUNC
-    
-; Helper function to draw a thick point (square of pixels)
-DRAW_THICK_POINT FUNCTION
-    PUSH {R0-R5, LR}         ; Save registers
-    
-    ; Calculate thickness offset
-    MOV R0, R10              ; R0 = thickness
-    LSR R0, R0, #1           ; R0 = thickness/2
-    
-    ; Calculate the bounds for the thick point
-    SUB R2, R6, R0           ; left = x - thickness/2
-    SUB R3, R7, R0           ; top = y - thickness/2
-    ADD R4, R10, #0          ; width = thickness
-    ADD R5, R10, #0          ; height = thickness
-    
-    ; Call DRAW_RECT with these coordinates
-    MOV R0, R2               ; x = left
-    MOV R1, R3               ; y = top
-    MOV R3, R4               ; width
-    MOV R4, R5               ; height
-    MOV R5, R11              ; color
-    BL DRAW_RECT             ; Call the rectangle drawing function
-    
-    POP {R0-R5, LR}          ; Restore registers
-    BX LR                    ; Return
-    ENDFUNC
-    
-; Helper function to get absolute value
-ABS FUNCTION
-    CMP R0, #0               ; Compare R0 with 0
-    IT LT                    ; If-Then (LT: Less Than)
-    RSBLT R0, R0, #0         ; If R0 < 0, R0 = -R0
-    BX LR                    ; Return
-    ENDFUNC
+    LTORG
 ;#######################################################END Drawing Functions#######################################################
 ;#######################################################START Menu Functions#######################################################
 ;#### Function to reset the menu =>> to be called before switching the current game variable
@@ -2172,6 +2246,7 @@ SNAKE_DRAW_LOOP
 	POP {R0-R12, LR}
 	BX LR
 	ENDFUNC
+    LTORG
 SNAKE_GAME_OVER_DRAW FUNCTION
 	PUSH {R0-R12}
 	MOV R0, #0xFFE0
@@ -2259,6 +2334,322 @@ SNAKE_GAME_OVER_DRAW FUNCTION
 	POP {R0-R12}
 	B MAIN_LOOP
 	ENDFUNC
+
+DRAW_GAME4 FUNCTION
+    PUSH {R0-R12, LR}
+    MOV R0, #0
+    MOV R1, #0
+    MOV R3, #0x80
+    MOV R4, #0x140
+    MOV R5, #0
+    BL DRAW_RECT
+    MOV R0, #0x190
+    MOV R1, #0
+    MOV R3, #0x80
+    MOV R4, #0x140
+    MOV R5, #0
+    BL DRAW_RECT
+    MOV R0, #80
+    MOV R1, #0
+    MOV R3, #0x140
+    MOV R4, #0x140
+    LDR R5, =XO_BCK_COLOR
+    BL DRAW_RECT
+    MOV R0, #180
+    MOV R1, #0
+    MOV R3, #10
+    MOV R4, #0x140
+    LDR R5, =XO_WALL_COLOR
+    BL DRAW_RECT
+    MOV R0, #0x122 ; 290
+    MOV R1, #0
+    MOV R3, #10
+    MOV R4, #0x140
+    LDR R5, =XO_WALL_COLOR
+    BL DRAW_RECT
+    MOV R0, #80
+    MOV R1, #100
+    MOV R3, #0x140
+    MOV R4, #10
+    LDR R5, =XO_WALL_COLOR
+    BL DRAW_RECT
+    MOV R0, #80
+    MOV R1, #210
+    MOV R3, #0x140
+    MOV R4, #10
+    LDR R5, =XO_WALL_COLOR
+    BL DRAW_RECT
+    MOV R0, #80
+    MOV R1, #0
+    MOV R3, #100
+    MOV R4, #100
+    LDR R5, =XO_HOVER_COLOR
+    BL DRAW_RECT
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+    LTORG
+; R3 Has current active cell
+XO_INC_HOVER
+    PUSH {R0-R12, LR}
+    LDR R0, =ACTIVE_CELL
+    LDRB R0, [R0]
+    LDR R1, =GameBoard
+XO_INC_LOOP
+    CMP R0, #8
+    MOVEQ R0, #-1
+    ADD R0, R0, #1
+    LDRB R2, [R1, R0]
+    CMP R0, R3
+    BEQ XO_INC_END
+    CMP R2, #0
+    BNE XO_INC_LOOP
+XO_INC_END
+    LDR R1, =ACTIVE_CELL
+    STRB R0, [R1]
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+XO_DEC_HOVER
+    PUSH {R0-R12, LR}
+    LDR R0, =ACTIVE_CELL
+    LDR R0, [R0]
+    LDR R1, =GameBoard
+XO_DEC_LOOP
+    CMP R0, #0
+    MOVEQ R0, #9
+    SUB R0, R0, #1
+    LDRB R2, [R1, R0]
+    CMP R0, R3
+    BEQ XO_DEC_END
+    CMP R2, #0
+    BNE XO_DEC_LOOP
+XO_DEC_END
+    LDR R1, =ACTIVE_CELL
+    STRB R0, [R1]
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+; R7 has the color
+XO_DRAW_CELL FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R0, =ACTIVE_CELL
+    LDRB R0, [R0]
+    ; Calculate Start X
+    MOV R1, #3
+    BL MODULO
+    MOV R1, #110
+    MUL R0, R1, R2
+    ADD R0, R0, #80
+    ; Calculate Start Y
+    LDR R1, =ACTIVE_CELL
+    LDRB R1, [R1]
+    MOV R8, #3
+    UDIV R4, R1, R8
+    MOV R2, #110
+    MUL R1, R2, R4
+    MOV R3, #100
+    MOV R4, #100
+    MOV R5, R7
+    BL DRAW_RECT
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+DRAW_PLAYER_X_WIN FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R3, =char_80 ;P
+    MOV R0, #136
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_88 ;X
+    MOV R0, #248
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_73 ;I
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_78 ;N
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #328
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+DRAW_PLAYER_O_WIN FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R3, =char_80 ;P
+    MOV R0, #136
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_76 ;L
+    MOV R0, #152
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #168
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_89 ;Y
+    MOV R0, #184
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_69 ;E
+    MOV R0, #200
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #216
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_79 ;O
+    MOV R0, #248
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #280
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_73 ;I
+    MOV R0, #296
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_78 ;N
+    MOV R0, #312
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    LDR R3, =char_83 ;S
+    MOV R0, #328
+    MOV R1, #152
+    MOV R4, #0x0000
+    MOV R5, #0x07E0
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+XO_GAME_DRAW FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R3, =char_68 ;D
+    MOV R0, #8
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #24
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #40
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #56
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_68 ;D
+    MOV R0, #0x198
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_82 ;R
+    MOV R0, #0x1A8
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_65 ;A
+    MOV R0, #0x1B8
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    LDR R3, =char_87 ;W
+    MOV R0, #0x1C8
+    MOV R1, #152
+    MOV R4, #0x001E
+    MOV R5, #0x0000
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -2424,7 +2815,7 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
     cmp r0, #250                  ; Compare difference with 250 ms
-    bls skip_toggle              ; If <= 250 ms, skip the toggle
+    BLS.W skip_toggle              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
@@ -2438,6 +2829,8 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     BEQ GAME2_INT0_HANDLER
     CMP R11, #3
     BEQ GAME3_INT0_HANDLER
+    CMP R11, #4
+    BEQ GAME4_INT0_HANDLER
 	B skip_toggle
 
 ; ##########Start Main Menu Handler##########
@@ -2531,10 +2924,24 @@ GAME3_INT0_HANDLER
 	STRB R1, [R0]
     B skip_toggle
 ;##########END Game3 Handler############
+;##########Start Game4 Handler############
+GAME4_INT0_HANDLER
+    LDR R3, =ACTIVE_CELL
+    LDRB R3, [R3]
+    LDR R7, =XO_BCK_COLOR
+    BL XO_DRAW_CELL
+    BL XO_INC_HOVER
+    LDR R3, =ACTIVE_CELL
+    LDRB R3, [R3]
+    LDR R7, =XO_HOVER_COLOR
+    BL XO_DRAW_CELL
+    B skip_toggle
+;##########END Game4 Handler############
 skip_toggle
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
+    LTORG
 
 EXTI1_IRQHandler PROC ; Left Button Handler
 
@@ -2551,7 +2958,7 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
     cmp r0, #250                  ; Compare difference with 250 ms
-    bls skip_toggle1              ; If <= 50 ms, skip the toggle
+    BLS.W skip_toggle1              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn2_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
@@ -2565,6 +2972,8 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     BEQ GAME2_INT1_HANDLER
     CMP R11, #3
     BEQ GAME3_INT1_HANDLER
+    CMP R11, #4
+    BEQ GAME4_INT1_HANDLER
 	B skip_toggle1
     ; ##########Start Main Menu Handler##########
 MENU_INT1_HANDLER
@@ -2659,6 +3068,19 @@ GAME3_INT1_HANDLER
 	STRB R1, [R0]
     B skip_toggle1
 ;##########END Game3 Handler############
+;##########Start Game4 Handler############
+GAME4_INT1_HANDLER
+    LDR R3, =ACTIVE_CELL
+    LDRB R3, [R3]
+    LDR R7, =XO_BCK_COLOR
+    BL XO_DRAW_CELL
+    BL XO_DEC_HOVER
+    LDR R3, =ACTIVE_CELL
+    LDRB R3, [R3]
+    LDR R7, =XO_HOVER_COLOR
+    BL XO_DRAW_CELL
+    B skip_toggle1
+;##########END Game4 Handler############
 skip_toggle1
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
@@ -2679,7 +3101,7 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
     cmp r0, #250                  ; Compare difference with 250 ms
-    bls skip_toggle2             ; If <= 50 ms, skip the toggle
+    BLS.W skip_toggle2             ; If <= 50 ms, skip the toggle
 	ldr r4, =btn3_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
@@ -2693,6 +3115,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     BEQ GAME2_INT2_HANDLER
     CMP R11, #3
     BEQ GAME3_INT2_HANDLER
+   CMP R11, #4
+   BEQ GAME4_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -2709,6 +3133,8 @@ MENU_INT2_HANDLER
     BEQ RESET_MAZE_LBL
     CMP R11, #3
     BEQ RESET_SNAKE_LBL
+    CMP R11, #4
+    BEQ RESET_XO_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
@@ -2733,6 +3159,10 @@ RESET_SNAKE_LBL
     MOV R0, #0xFFE0
     BL FILL_SCREEN
     B skip_toggle2
+RESET_XO_LBL
+    BL XO_INIT_GAME
+    BL DRAW_GAME4
+    B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
 
@@ -2742,7 +3172,7 @@ GAME2_INT2_HANDLER
     LDR R0, =MAZE_GAME_STATE
     LDRB R1, [R0]
     CMP R1, #0
-    BNE skip_toggle2
+    BNE.W skip_toggle2
     BL DRAW_MAZE_PATH_BLOCK ; Draw the path block
     BL MAZE_MOVE_UP
     BL DRAW_MAZE_PLAYER ; Draw the player block
@@ -2753,22 +3183,125 @@ GAME3_INT2_HANDLER
 	LDR R0, =INPUT_BUFFER
 	LDRB R0, [R0]
 	CMP R0, #1
-	BEQ skip_toggle2
+	BEQ.W skip_toggle2
 	LDR R0, =SNAKE_GAME_OVER
 	LDRB R0, [R0]
 	CMP R0, #1
-	BEQ skip_toggle2
+	BEQ.W skip_toggle2
     BL SNAKE_GO_UP
 	LDR R0, =INPUT_BUFFER
 	MOV R1, #1
 	STRB R1, [R0]
 	B skip_toggle2
 ; ##########END Game3 Hanlder##########
+; ##########Start Game4 Hanlder##########
+GAME4_INT2_HANDLER
+    LDR R0, =GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #3
+    BEQ.W XO_DRAW_RESET
+    CMP R0, #0
+    BNE.W skip_toggle2
+    LDR R2, =CurrentPlayer
+    LDRB R2, [R2]
+    CMP R2, #1
+    BEQ DRAW_X_PLAYER
+    BL CHECK_DRAW_O
+	LDR R7, =XO_BCK_COLOR
+	BL XO_DRAW_CELL
+    LDR R0, =ACTIVE_CELL
+    LDRB R0, [R0]
+    ; Calculate Start X
+    MOV R1, #3
+    BL MODULO
+    MOV R1, #110
+    MUL R0, R1, R2
+    ADD R0, R0, #80
+    ADD R6, R0, #50
+    ; Calculate Start Y
+    LDR R1, =ACTIVE_CELL
+    LDRB R1, [R1]
+    MOV R8, #3
+    UDIV R4, R1, R8
+    MOV R2, #110
+    MUL R1, R2, R4
+    ADD R7, R1, #50
+    MOV R8, #45
+    LDR R9, =XO_O_COLOR
+    BL DRAW_CIRCLE
+    MOV R8, #42
+    LDR R9, =XO_BCK_COLOR
+    BL DRAW_CIRCLE
+    BL CHECK_WINNING
+    LDR R0, =GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #2
+    BEQ PLAYER_O_WIN
+    CMP R0, #3
+    BEQ XO_GAME_DRAW_LBL
+    BL XO_INC_HOVER
+    LDR R7, =XO_HOVER_COLOR
+    BL XO_DRAW_CELL
+    B skip_toggle2
+DRAW_X_PLAYER
+    BL CHECK_DRAW_X
+    LDR R0, =ACTIVE_CELL
+    LDRB R0, [R0]
+    ; Calculate Start X
+    MOV R1, #3
+    BL MODULO
+    MOV R1, #110
+    MUL R0, R1, R2
+    ADD R0, R0, #80
+    ADD R0, R0, #5
+	LDR R7, =XO_BCK_COLOR
+	BL XO_DRAW_CELL
+    ; Calculate Start Y
+    LDR R1, =ACTIVE_CELL
+    LDRB R1, [R1]
+    MOV R8, #3
+    UDIV R4, R1, R8
+    MOV R2, #110
+    MUL R1, R2, R4
+    ADD R1, R1, #5
+    MOV R4, #4
+    LDR R9, =XO_X_COLOR
+    BL DRAW_X
+    BL CHECK_WINNING
+    LDR R0, =GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #1
+    BEQ PLAYER_X_WIN
+    CMP R0, #3
+    BEQ XO_GAME_DRAW_LBL
+    BL XO_INC_HOVER
+    LDR R7, =XO_HOVER_COLOR
+    BL XO_DRAW_CELL
+    B skip_toggle2
+PLAYER_O_WIN
+    MOV R0, #0x07E0
+    BL FILL_SCREEN
+    BL DRAW_PLAYER_O_WIN
+    B skip_toggle2
+PLAYER_X_WIN
+    MOV R0, #0x07E0
+    BL FILL_SCREEN
+    BL DRAW_PLAYER_X_WIN
+    B skip_toggle2
+XO_GAME_DRAW_LBL
+    BL XO_GAME_DRAW
+    B skip_toggle2
+XO_DRAW_RESET
+    BL XO_INIT_GAME
+    BL DRAW_GAME4
+    B skip_toggle2
+; ##########END Game4 Hanlder##########
+
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
-
+    LTORG
 EXTI3_IRQHandler PROC ; Down button handler
 
 	push {r0-r5, lr}         ; Save registers to the stack

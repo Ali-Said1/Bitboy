@@ -1,54 +1,32 @@
-
-;;;;;;;;;; BOARD WITH 1 PIXEL FRAME IN CASE COLOR INSIDE FRAME AND OUTSIDE ;;;;;;;;;;;;;;
-BOARDSTARTX      EQU     0x0050
-BOARDSTARTY      EQU     0x0000
-BOARDENDX        EQU     0x0190
-BOARDENDY        EQU     0x0140
-
-
-
-
-
-;;;;;;;;;;; ROW START AT 81 ,EACH AT DISTANCE 106 ;;;;;;;;;;
-ROW_Y_START      EQU        0x0001
-ROW_ONE          EQU        0x00B8
-ROW_TWO          EQU        0x0122
-
-
-;;;;;;;;;;; COL START AT 81 ,EACH AT DISTANCE 106 ;;;;;;;;;;
-COL_X_START     EQU         0x0051         
-COL_ONE         EQU         0x0068
-COL_TWO         EQU         0x00D2
-
-;;;;;;;;;;; ROW AND COL DIMENSIONS (NUMERICAL) ;;;;;;;;;;;;;;
-ROW_OR_COL_HEIGHT     EQU     0x013E
-ROW_OR_COL_WIDTH      EQU     0x0006
-
+    AREA XOCONST,DATA,READONLY
+    EXPORT BOARD_DIM
+    EXPORT XO_O_COLOR
+    EXPORT XO_X_COLOR
+    EXPORT XO_HOVER_COLOR
+    EXPORT XO_WALL_COLOR
+    EXPORT XO_BCK_COLOR
 EMPTY_CELL    EQU     0x0000
 PLAYER_X      EQU     0x0001
 PLAYER_O      EQU     0x0002
 BOARD_DIM     EQU     0x0140
-    
+XO_HOVER_COLOR EQU 0xB59E
+XO_WALL_COLOR EQU 0x1C16
+XO_BCK_COLOR EQU 0xEF7C
 
-        AREA VECTORS, CODE, READONLY
-        EXPORT  __Vectors
-__Vectors
-        DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
-        DCD     Reset_Handler       ; Reset handler address
-
+XO_O_COLOR EQU 0x5C49
+XO_X_COLOR EQU 0x2066
+    ALIGN
 
     AREA GameData, DATA, READWRITE
     EXPORT GameBoard
-    EXPORT CurrentPlayer   
-    EXPORT WINNER
-    EXPORT COUNTER
+    EXPORT CurrentPlayer
     EXPORT GAME_STATUS
     EXPORT ACTIVE_CELL
 GameBoard       SPACE   9       ; 3x3 game board (1 byte per cell, each cell 0 = free, 1 = X, 2 = O)
 CurrentPlayer   DCB     0x0     ; Current player (X=1, O=2)
 COUNTER         DCB   0x0       ; Counter for the number of moves made
 GAME_STATUS     DCB   0x0       ; Game status (0 =ongoing, 1 = X wins, 2 =O wins, 3 =draw)
-ACTIVE_CELL     DCB   0x0       ; Active cell (1-9)
+ACTIVE_CELL     DCB   0x0       ; Active cell (0-8)
 WINNER          DCB   0x0       ; Winner (1 = X, 2 = O, 0 = none)
     ALIGN
 
@@ -57,19 +35,17 @@ WINNER          DCB   0x0       ; Winner (1 = X, 2 = O, 0 = none)
 
     AREA MYCODE,CODE,READONLY
     EXPORT XO_MAIN
-    EXPORT INIT_GAME
-    EXPORT Reset_Handler
+    EXPORT XO_INIT_GAME
+    EXPORT CHECK_DRAW_X
+    EXPORT CHECK_DRAW_O
+    EXPORT CHECK_WINNING
     ENTRY
-Reset_Handler
-    BL XO_MAIN
-
-
 XO_MAIN     FUNCTION
 
     ; DRAW BACKGROUND COLOR
     ; DRAW ROWS & COLUMNS
 
-    BL INIT_GAME
+    BL XO_INIT_GAME
 
 MAIN_LOOP
     BL HANDLE_INPUT
@@ -94,7 +70,7 @@ MAIN_LOOP
     ENDFUNC
 
 ;;;;;;;;;;;; Clear Data , Set start up Player to X , Set Ongoing Game ;;;;;;;;;;;;
-INIT_GAME FUNCTION
+XO_INIT_GAME FUNCTION
     push{R0-R12,LR}
 
     LDR     R0, =GameBoard
@@ -129,6 +105,9 @@ INIT_DONE
     MOV     R1, #0x0000
     STRB    R1, [R0]
 
+    LDR R0, =ACTIVE_CELL
+    MOV R1, #0
+    STRB R1, [R0]
     pop {R0-R12,LR}
     BX LR
     ENDFUNC
@@ -163,7 +142,6 @@ CHECK_DRAW_X    FUNCTION
     LDR R0, =PLAYER_X
     STRB R0,[R4] 
 
-    BL DRAW_X        ;;;;;;;;;;;;;;;;;HERE TO CALL REAL DRAW
     LDR R0, =CurrentPlayer
     MOV R1, #2
     STRB R1, [R0]
@@ -184,7 +162,6 @@ CHECK_DRAW_O    FUNCTION
     LDR R0, =PLAYER_O
     STRB R0,[R4] 
 
-    BL DRAW_O        ;;;;;;;;;;;;;;;;;HERE TO CALL REAL DRAW
     LDR R0, =CurrentPlayer
     MOV R1, #1
     STRB R1, [R0]
@@ -192,44 +169,9 @@ CHECK_DRAW_O    FUNCTION
     pop{R0-R12,PC}
     ENDFUNC
 
-DRAW_X  FUNCTION
-
-    PUSH{R0-R12,LR}
-    ;(1) - DRAW
-    
-    ;(2) - CHECK FOR WINNING 
-    BL CHECK_WINNING
-
-    POP{R0-R12,PC}
-    ENDFUNC
-
-DRAW_O  FUNCTION
-
-    PUSH{R0-R12,LR}
-    ;(1) - DRAW
-
-    ;R5 >>> X-Coordinates
-    ;R6 >>> Y-Coordinates
-    
-    ;(2) - CHECK FOR WINNING 
-    BL CHECK_WINNING
-
-    POP{R0-R12,PC}
-    ENDFUNC
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 CHECK_WINNING   FUNCTION
     PUSH{R0-R12,LR}
-
-    LDR R0,=COUNTER
-    LDR R1, [R0]
-    CMP R1, #9
-    BNE CHECK_THIRD_ROW
-    LDR R0,=GAME_STATUS
-    MOV R1,#0x0003
-    STRB R1,[R0]
-    B DRAW_DONE
-
 CHECK_THIRD_ROW
     LDR R0, =GameBoard     ; Load base address
     LDRB R1, [R0, #0]       ; Load byte at offset 0
@@ -324,10 +266,10 @@ CHECK_THIRD_COL
     LDRB R3, [R0, #8]       ; Load byte at offset 8
 
     CMP R1, R2
-    BNE TO_END
+    BNE CHECK_FIRST_DIAG
 
     CMP R2, R3
-    BNE TO_END
+    BNE CHECK_FIRST_DIAG
 
     CMP R2, #1
     BEQ X_IS_WINNING
@@ -389,9 +331,17 @@ O_IS_WINNING
 
 TO_END
     LDR R0, =COUNTER
-    LDR R1, [R0]
+    LDRB R1, [R0]
     ADD R1, R1, #1
-    STR R1, [R0]
+    STRB R1, [R0]
+    CMP R1, #9
+    BNE DRAW_DONE
+    LDR R0,=GAME_STATUS
+    LDRB R2, [R0]
+    CMP R2, #0
+    BNE DRAW_DONE
+    MOV R1,#3
+    STRB R1,[R0]
 DRAW_DONE
     POP{R0-R12,PC}
     ENDFUNC

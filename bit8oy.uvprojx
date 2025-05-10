@@ -434,6 +434,11 @@
               <FileType>2</FileType>
               <FilePath>.\PONG_IMG.s</FilePath>
             </File>
+            <File>
+              <FileName>XO.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\XO.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
