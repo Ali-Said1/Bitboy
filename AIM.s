@@ -370,19 +370,20 @@ done_delta
     UXTH  R2, R2             ; Clear upper 16 bits
     ORR   R1, R1, R2         ; Combine updated x (R1) with original y
 
-    ; Clamp x to 0 - Width
+    ; Clamp x to #(TARGET_R) - (Width + TARGET_R)
     LSR   R3, R1, #16        ; Extract x component
     SXTH  R3, R3
-    CMP   R3, #0
+    CMP   R3, #TARGET_R
     BGT   check_upper_bound
-    MOV   R3, #0             ; Clamp to 0 if x < 0
+    MOV   R3, #TARGET_R              ; Clamp to 0 if x < 0
     B     clamp_done
 
 check_upper_bound
     LDR   R4, =Width
+    SUB R4, #TARGET_R
     CMP   R3, R4
     BLE   clamp_done
-    MOV   R3, R4             ; Clamp to Width if x > Width
+    MOV   R3, R4             ; Clamp to Width + TARGET_R if x > Width + TARGET_R
 
 clamp_done
     LSL   R3, R3, #16        ; Shift clamped x back to upper 16 bits
@@ -529,13 +530,14 @@ done_delta_y
     LDR   R2, [R0]
 
     ; Clamp y to 0 - Height
-    CMP   R1, #0
+    CMP   R1, #TARGET_R
     BGE   check_upper_bound_y
-    MOV   R1, #0             ; Clamp to 0 if y < 0
+    MOV   R1, #TARGET_R             ; Clamp to 0 if y < 0
     B     clamp_done_y
 
 check_upper_bound_y
     LDR   R3, =Height
+    SUB   R3, #TARGET_R
     CMP   R1, R3
     BLE   clamp_done_y
     MOV   R1, R3             ; Clamp to Height if y > Height
