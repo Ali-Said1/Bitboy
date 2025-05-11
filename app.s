@@ -1264,7 +1264,7 @@ RESET_MENU FUNCTION
     MOV R1, #1
     STR R1, [R0] ; Reset hovered game to 0
     LDR R0, =HOVERED_GAME_X
-    MOV R1, #37
+    MOV R1, #2
     STR R1, [R0] ; Reset X coordinate of hovered game
     LDR R0, =HOVERED_GAME_Y
     MOV R1, #52
@@ -1322,27 +1322,35 @@ DRAW_MENU FUNCTION
     BL DRAW_RECT
     ;Draw the game logo
     LDR R3, =PONG_LOGO
-    MOV R0, #45
+    MOV R0, #10
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =MAZE_LOGO
-    MOV R0, #190
+    MOV R0, #130
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =SNAKE_LOGO
-    MOV R0, #335
+    MOV R0, #250
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =XO_LOGO
-    MOV R0, #45
-    MOV R1, #200
+    MOV R0, #370
+    MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =AIM_LOGO
-    MOV R0, #190
+    MOV R0, #10
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =DINO_LOGO
-    MOV R0, #335
+    MOV R0, #130
+    MOV R1, #200
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =DINO_LOGO
+    MOV R0, #250
+    MOV R1, #200
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =DINO_LOGO
+    MOV R0, #370
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     POP {R0-R4, LR}
@@ -3573,21 +3581,21 @@ MENU_INT0_HANDLER
     LDR R2, [R1] ; Get hovered game index
     ADD R2, R2, #1 ; Move to the next game
     STR R2, [R1] ; Update hovered game index
-    CMP R2, #4 ; Check if it was the last game in the first row (3)
+    CMP R2, #5 ; Check if it was the last game in the first row (4)
     BEQ GO_SECOND_ROW
-    CMP R2, #7 ; Check if it was the last game in the second row (6)
+    CMP R2, #9 ; Check if it was the last game in the second row (8)
     BEQ GO_FIRST_ROW
     ; If both weren't the case stay in the same row
     LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
     LDR R2, [R1] ; Get X coordinate
-    ADD R2, R2, #145 ; Add 145 to X coordinate for next game
+    ADD R2, R2, #120 ; Add 120 to X coordinate for next game
     STR R2, [R1]
     BL DRAW_MENU ; Call DRAW_MENU to update the screen
     B skip_toggle
 
 GO_SECOND_ROW
     LDR R1, =HOVERED_GAME_X
-    MOV R2, #37 ; Reset X coordinate to first game
+    MOV R2, #2 ; Reset X coordinate to first game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #192 ; Go to the second row
@@ -3722,22 +3730,22 @@ MENU_INT1_HANDLER
     STR R2, [R1] ; Update hovered game index
     CMP R2, #0 ; Check if it was the first game in the first row (1)
     BEQ GO_END_SECOND_ROW
-    CMP R2, #3 ; Check if it was the first game in the second row (index 4)
+    CMP R2, #4 ; Check if it was the first game in the second row (index 5)
     BEQ GO_END_FIRST_ROW
     ; If both weren't the case stay in the same row
     LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
     LDR R2, [R1] ; Get X coordinate
-    SUBS R2, R2, #145 ; Subtract 145 to X coordinate for next game
+    SUBS R2, R2, #120 ; Subtract 120 to X coordinate for next game
     STR R2, [R1]
     BL DRAW_MENU ; Call DRAW_MENU to update the screen
     B skip_toggle1
 
 GO_END_SECOND_ROW
     LDR R1, =HOVERED_GAME
-    MOV R0, #6
+    MOV R0, #8
     STR R0, [R1] ; Set hovered game to the last game in the second row
     LDR R1, =HOVERED_GAME_X
-    MOV R2, #327 ; X Coordinate to last game
+    MOV R2, #362 ; X Coordinate to last game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #192 ; Go to the second row
@@ -3746,7 +3754,7 @@ GO_END_SECOND_ROW
     B skip_toggle1
 GO_END_FIRST_ROW
     LDR R1, = HOVERED_GAME_X
-    MOV R2, #327 ; X Coordinate to last game
+    MOV R2, #362 ; X Coordinate to last game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #52 ; Go to the second row

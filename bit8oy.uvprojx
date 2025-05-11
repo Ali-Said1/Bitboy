@@ -465,9 +465,9 @@
               <FilePath>.\DINO_LOGO.s</FilePath>
             </File>
             <File>
-              <FileName>dinoo.s</FileName>
+              <FileName>dino.s</FileName>
               <FileType>2</FileType>
-              <FilePath>.\dinoo.s</FilePath>
+              <FilePath>.\dino.s</FilePath>
             </File>
           </Files>
         </Group>
