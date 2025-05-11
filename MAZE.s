@@ -301,7 +301,7 @@ generation_complete
 
 ; SOLVER
 ; Traverses the map using dfs and finds the solution.
-; Allow us to use some more time complexity so we can solve.
+; Yes the time complexity is high, but it does solve the maze and this is assembly.
 MAZE_SOLVER FUNCTION
         PUSH {R0-R12, LR}
         LDR R0, =MAZE_stack_ptr
