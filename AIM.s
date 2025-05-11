@@ -23,6 +23,10 @@ AIM_OBJ_COLOR    EQU 0xF800
         EXPORT AIM_OBJ3_POS
         EXPORT AIM_VEL
         EXPORT AIM_PRNG_STATE
+        EXPORT AIM_GAME_STATE
+        EXPORT AIM_TIMER
+        EXPORT AIM_SECOND_TIMER
+        EXPORT AIM_SCORE_TIMER_COLOR
 AIM_POS  DCD 0           ; Aim absolute position XXXXYYYY
 AIM_OBJ1_POS DCW 0           ; OBJ1 grid position XXYY ([0, 47], [0, 31])
 AIM_OBJ2_POS DCW 0           ; OBJ2 grid position XXYY ([0, 47], [0, 31])
@@ -31,12 +35,17 @@ AIM_VEL  DCW 0           ; Aim velocity XXYY px/ SECOND
 AIM_POS_DELTA_X DCW 0x0000 
 AIM_POS_DELTA_X_DECIMAL DCW 0x0000 
 
+AIM_SCORE_TIMER_COLOR DCW 0xFFFF
 AIM_POS_DELTA_Y DCW 0x0000 ; Δ position in y direction used to accumulate position change, then we take its upper byte to update position
 AIM_POS_DELTA_Y_DECIMAL DCW 0x0000 
 AIM_PRNG_STATE
     DCD     0x12815678    ; INITIAL SEED FOR THE PRNG
-;sys_time
-;    DCD     0    ; SYSTIME (THIS IS VIRTUAL)
+
+AIM_SECOND_TIMER DCW 1000
+AIM_TIMER DCB 0
+
+AIM_GAME_STATE DCB 0
+
 AIM_LAST_SYSTIME
     DCD     0    ; SYSTIME OF LAST FRAME
 
@@ -200,6 +209,19 @@ AIM_RESET FUNCTION
     LDR   r1, =0x00E000A0              ; Initial Aim position (XXXXYYYY = 0)
     STR   r1, [r0]
 
+    LDR R0, =AIM_POS_DELTA_X
+    MOV R1, #0
+    STRH R1, [R0]
+    LDR R0, =AIM_POS_DELTA_X_DECIMAL
+    MOV R1, #0
+    STRH R1, [R0]
+    LDR R0, =AIM_POS_DELTA_Y
+    MOV R1, #0
+    STRH R1, [R0]
+    LDR R0, =AIM_POS_DELTA_Y_DECIMAL
+    MOV R1, #0
+    STRH R1, [R0]
+
     LDR   r0, =AIM_VEL
     MOV   r1, #0x0000              ; Initial Aim velocity (XXYY = 0)
     STRH  r1, [r0]
@@ -215,11 +237,34 @@ AIM_RESET FUNCTION
     LDR   r0, =AIM_OBJ3_POS
     MOV   r1, #0x0000              ; Initial OBJ3 grid position (XXYY = 0)
     STRH  r1, [r0]
-
+    LDR R0, =AIM_SCORE
+    MOV R1, #0
+    STRB R1, [R0]
     ; Optionally re-initialize the PRNG state 
     LDR   r0, =AIM_PRNG_STATE
     LDR   r1, =0x12345678     ; Re-set initial seed
     STR   r1, [r0]
+
+    LDR R0, =AIM_LAST_SYSTIME
+    LDR R1, =sys_time
+    LDR R1, [R1]
+    STR R1, [R0]
+
+    LDR R0, =AIM_TIMER
+    MOV R1, #59
+    STRB R1, [R0]
+
+    LDR R0, =AIM_SECOND_TIMER
+    MOV R1, #999
+    STRH R1, [R0]
+
+    LDR R0, =AIM_SCORE_TIMER_COLOR
+    LDR R1, =0xFFFF
+    STRH R1, [R0]
+
+    LDR R0, =AIM_GAME_STATE
+    MOV R1, #0
+    STRB R1, [R0]
 
     MOV     R0, #0
     BL SPAWN_OBJ
@@ -234,7 +279,7 @@ AIM_RESET FUNCTION
 
 ; Inputs R0 = Object Index
 SPAWN_OBJ FUNCTION
-    PUSH {R1-R4, LR}
+    PUSH {R0-R4, LR}
 
     ; Compute address of object position: OBJ_POS_BASE + R0 * 2
     LSL     R1, R0, #1          ; R1 = R0 * 2 (each object takes 2 bytes)
@@ -259,7 +304,7 @@ SPAWN_OBJ FUNCTION
     ; Store 2-byte XXYY at object position
     STRH    R4, [R2]            ; Store halfword (16-bit) to memory
 
-    POP {R1-R4, LR}
+    POP {R0-R4, LR}
     BX LR
 	ENDFUNC
 
@@ -305,7 +350,8 @@ apply_vel_x FUNCTION
     ; Extract x velocity (upper byte of AIM_VEL)
     LSR   R1, R1, #8          ; R1 = x velocity (XX)
 	SXTB	R1,R1
-
+    MOV R7, #3
+    MUL R1, R7
     CMP R1, #0               ; Check if velocity is positive or negative
     BGE positive_velocity    ; If positive, branch to positive_velocity
 
@@ -468,7 +514,8 @@ apply_vel_y FUNCTION
 
     ; Extract y velocity (lower byte of AIM_VEL)
     SXTB  R1, R1
-
+    MOV R7, #3
+    MUL R1, R7
     CMP R1, #0               ; Check if velocity is positive or negative
     BGE positive_velocity_y  ; If positive, branch to positive_velocity_y
 
