@@ -1,3 +1,4 @@
+    IMPORT sys_time
     AREA DINOCONST, DATA, READONLY
     EXPORT DINO_CAC_W
     EXPORT DINO_CAC_H
@@ -41,7 +42,6 @@ DINO_OBSTACLE_VELOCITY EQU   100
     EXPORT OB3_Y
     EXPORT OB3_W
     EXPORT OB3_H
-    EXPORT sys_time
 	EXPORT JUMP_CONDITION
 DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
 DINO_X  DCW 20
@@ -76,7 +76,6 @@ OB3_X DCW 0
 OB3_Y DCW 0
 OB3_W DCW 0
 OB3_H DCW 0
-sys_time DCD 100
 DINO_PRNG_STATE DCD 0
 DINO_VELOCITY DCB 0
 ACC          DCB      -2
@@ -90,8 +89,9 @@ DINO_DELTA_Y_DECIMAL DCW 0x0000
 GAME_OVER_STATE DCB 0x00 
     AREA DINOCODE, CODE, READONLY
 	EXPORT DINO_LOOP
+    EXPORT DINO_RESET
 
-RESET FUNCTION
+DINO_RESET FUNCTION
     PUSH {R0-R1, LR}
     ; Initialize dino x
     LDR     R0, =DINO_X
@@ -129,7 +129,7 @@ RESET FUNCTION
     STRH    R1,[R0]
     ;intialize dino object height
     LDR     R0,=DINO_H
-    MOV     R1,#NORMAL_DINO_H          
+    MOV     R1,#DINO_NORMAL_DINO_H          
     STRH    R1,[R0]
     ;intialize delay
     LDR     R0,=DELAY
@@ -164,18 +164,10 @@ DINO_LOOP FUNCTION
     BL check_collision
     CMP R3, #0
     BNE GAME_OVER
-
-
-    LDR R0, =sys_time
-    LDR R1, [R0]
-    ADD R1, R1, #17
-    STR R1, [R0]
     
     BL apply_vel_y
 	BL UPDATE_VELOCITY
     
-    
-    B game_loop
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
@@ -295,7 +287,7 @@ DINO_JUMP FUNCTION
     MOV R2, #180
     STRH R2,[R0]
     LDR R0,=DINO_H
-    MOV R2, #NORMAL_DINO_H
+    MOV R2, #DINO_NORMAL_DINO_H
     STRH R2,[R0]
     ; Set initial velocity and upward acceleration
     LDR R0, =DINO_VELOCITY
@@ -319,7 +311,7 @@ DINO_CROUCH FUNCTION
     MOV R2, #230
     STRH R2,[R0]
     LDR R0,=DINO_H
-    MOV R2, #CROUCH_DINO_H
+    MOV R2, #DINO_CROUCH_DINO_H
     STRH R2,[R0]
     LDR R0,=DINOSTATE
     MOV R2, #2
@@ -334,7 +326,7 @@ UNCROUCH FUNCTION
     MOV R2, #180
     STRH R2,[R0]
     LDR R0,=DINO_H
-    MOV R2, #NORMAL_DINO_H
+    MOV R2, #DINO_NORMAL_DINO_H
     STRH R2,[R0]
     LDR R0,=DINOSTATE
     MOV R2, #0
@@ -394,7 +386,7 @@ check_for_objects   FUNCTION
     LDR R10, =sys_time  
     LDR R10, [R10]                  ;R10 = sys_time
     LDR R11, =LAST_SPAWN_TIME
-    LDR R11, [R11]                  ;R11 = LAST_SPAWN_TIME
+    LDRH R11, [R11]                  ;R11 = LAST_SPAWN_TIME
     SUB R11, R10 ,R11                ;R11 = sys_time - LAST_SPAWN_TIME
     MOV R3, #3000
     BL get_random
@@ -427,7 +419,7 @@ end_check_for_objects
     POP {R0-R12 , LR}
     BX LR
     ENDFUNC
-
+    LTORG
 
 spawn_object1 FUNCTION
     PUSH {R0-R12 , LR}
@@ -452,7 +444,7 @@ end_spawn_object1
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one
     ENDFUNC
-
+    LTORG
 spawn_object2   FUNCTION
     PUSH {R0-R12 , LR}
     MOV R0, #2              ;to indicate the object number
@@ -537,18 +529,18 @@ spawn_bird   FUNCTION ;R0 has the object number
     STRH R2 , [R1]  ;obj1_x =480  (the right of the screen)
 RD_W
     LDR R3 , =OB1_Y
-    MOV R4 , #GROUND_Y
-    SUB R4 , R4 , #NORMAL_DINO_H
+    MOV R4 , #DINO_GROUND_Y
+    SUB R4 , R4 , #DINO_NORMAL_DINO_H
     ADD R4 , R4,#10
-    STRH R4 , [R3]      ;obj1_y = GROUND_Y-DINO_H (flying at height of the dino)
+    STRH R4 , [R3]      ;obj1_y = DINO_GROUND_Y-DINO_H (flying at height of the dino)
     
 
     LDR R5 , =OB1_W   ;R5 = address of obj width
     LDR R6 , =OB1_H   ;R6 = address of obj height
-    LDR R7 , =BIRD_W
+    LDR R7 , =DINO_BIRD_W
     STRH R7 , [R5]     ;OBj1 width = bird width
 
-    LDR R7 , =BIRD_H
+    LDR R7 , =DINO_BIRD_H
     STRH R7 , [R6]    ;obj1 height = bird height
 
 
@@ -567,19 +559,19 @@ not1
     STRH R2 , [R1]  ;obj2_x =480  (the right of the screen)
 
     LDR R3 , =OB2_Y
-    MOV R4 , #GROUND_Y
-    SUB R4 , R4 , #NORMAL_DINO_H  
-    STRH R4 , [R3]      ;obj2_y = GROUND_Y-DINO_H (flying at height of the dino)
+    MOV R4 , #DINO_GROUND_Y
+    SUB R4 , R4 , #DINO_NORMAL_DINO_H  
+    STRH R4 , [R3]      ;obj2_y = DINO_GROUND_Y-DINO_H (flying at height of the dino)
 
 
 
 
     LDR R5 , =OB2_W   ;R5 = address of obj width
     LDR R6 , =OB2_H   ;R6 = address of obj height
-    LDR R7 , =BIRD_W
+    LDR R7 , =DINO_BIRD_W
     STRH R7 , [R5]     ;OBj2 width = bird width
 
-    LDR R7 , =BIRD_H
+    LDR R7 , =DINO_BIRD_H
     STRH R7 , [R6]    ;obj2 height = bird height
 
 
@@ -595,18 +587,18 @@ not2
     STRH R2, [R1]  ;obj3_x =480  (the right of the screen)
 
     LDR R3, =OB3_Y
-    MOV R4, #GROUND_Y
-    SUB R4, R4, #NORMAL_DINO_H  
-    STRH R4, [R3]      ;obj3_y = GROUND_Y-DINO_H (flying at height of the dino)
+    MOV R4, #DINO_GROUND_Y
+    SUB R4, R4, #DINO_NORMAL_DINO_H  
+    STRH R4, [R3]      ;obj3_y = DINO_GROUND_Y-DINO_H (flying at height of the dino)
 
 
 
     LDR R5, =OB3_W   ;R5 = address of obj width
     LDR R6, =OB3_H   ;R6 = address of obj height
-    LDR R7, =BIRD_W
+    LDR R7, =DINO_BIRD_W
     STRH R7, [R5]     ;OBj3 width = bird width
 
-    LDR R7, =BIRD_H
+    LDR R7, =DINO_BIRD_H
     STRH R7, [R6]    ;obj3 height = bird height
 
 
@@ -618,7 +610,7 @@ end_spawn_bird
     LDR R1 , =sys_time
     LDR R1 , [R1]
     LDR R2, =LAST_SPAWN_TIME
-    STR R1, [R2]   ;update LAST_SPAWN_TIME
+    STRH R1, [R2]   ;update LAST_SPAWN_TIME
 
 
 
@@ -637,15 +629,15 @@ spawn_cactus   FUNCTION;R0 has the object number
     STRH R2, [R1]  ;obj1_x =480  (the right of the screen)
 
     LDR R3, =OB1_Y
-    MOV R4, #GROUND_Y
-    SUB R4, R4, #CAC_H
-    STRH R4, [R3]      ;obj1_y = GROUND_Y-CAC_H (normal cactus position)
+    MOV R4, #DINO_GROUND_Y
+    SUB R4, R4, #DINO_CAC_H
+    STRH R4, [R3]      ;obj1_y = DINO_GROUND_Y-DINO_CAC_H (normal cactus position)
     LDR R5, =OB1_W   ;R5 = address of obj width
     LDR R6, =OB1_H   ;R6 = address of obj height
-    LDR R7, =CAC_W
+    LDR R7, =DINO_CAC_W
     STRH R7, [R5]     ;OBj1 width = cactus width
 
-    LDR R7, =CAC_H
+    LDR R7, =DINO_CAC_H
     STRH R7, [R6]    ;obj1 height = cactus height
     B end_spawn_cactus
 
@@ -661,17 +653,17 @@ not1_cactus
     STRH R2, [R1]  ;obj2_x =480  (the right of the screen)
 
     LDR R3, =OB2_Y
-    MOV R4, #GROUND_Y
-    SUB R4, R4, #CAC_H  
-    STRH R4, [R3]      ;obj2_y = GROUND_Y-CAC_H (normal cactus position)
+    MOV R4, #DINO_GROUND_Y
+    SUB R4, R4, #DINO_CAC_H  
+    STRH R4, [R3]      ;obj2_y = DINO_GROUND_Y-DINO_CAC_H (normal cactus position)
     
 
     LDR R5, =OB2_W   ;R5 = address of obj width
     LDR R6, =OB2_H   ;R6 = address of obj height
-    LDR R7, =CAC_W
+    LDR R7, =DINO_CAC_W
     STRH R7, [R5]     ;OBj2 width = cactus width
 
-    LDR R7, =CAC_H
+    LDR R7, =DINO_CAC_H
     STRH R7, [R6]    ;obj2 height = cactus height
 
     B end_spawn_cactus
@@ -684,18 +676,18 @@ not2_cactus
     STRH R2, [R1]  ;obj3_x =480  (the right of the screen)
 
     LDR R3, =OB3_Y
-    MOV R4, #GROUND_Y
-    SUB R4, R4, #CAC_H
-    STRH R4, [R3]      ;obj3_y = GROUND_Y-CAC_H (normal cactus position)
+    MOV R4, #DINO_GROUND_Y
+    SUB R4, R4, #DINO_CAC_H
+    STRH R4, [R3]      ;obj3_y = DINO_GROUND_Y-DINO_CAC_H (normal cactus position)
 
 
 
     LDR R5, =OB3_W   ;R5 = address of obj width
     LDR R6, =OB3_H   ;R6 = address of obj height
-    LDR R7, =CAC_W
+    LDR R7, =DINO_CAC_W
     STRH R7, [R5]     ;OBj3 width = cactus width
 
-    LDR R7, =CAC_H
+    LDR R7, =DINO_CAC_H
     STRH R7, [R6]    ;obj3 height = cactus height
 
 
@@ -709,7 +701,7 @@ end_spawn_cactus
     LDR R1 , =sys_time
     LDR R1 , [R1]
     LDR R2, =LAST_SPAWN_TIME
-    STR R1, [R2]   ;update LAST_SPAWN_TIME
+    STRH R1, [R2]   ;update LAST_SPAWN_TIME
 
 
     POP {R0-R12 , LR}
@@ -726,7 +718,7 @@ move_object FUNCTION
     LDR R2, [R0]
     SUB R4, R2, R1                ; R4 = sys_time - LAST_SYS_TIME_MOVE
 
-    LDR R2,=OBSTACLE_VELOCITY
+    LDR R2,=DINO_OBSTACLE_VELOCITY
     MOV R3, #1000
     UDIV R3,R3,R2
     CMP R4, R3
@@ -952,8 +944,8 @@ done_delta_y
     B     clamp_done_y
 
 check_upper_bound_y
-    LDR   R4, =GROUND_Y
-    SUB R4, #NORMAL_DINO_H
+    LDR   R4, =DINO_GROUND_Y
+    SUB R4, #DINO_NORMAL_DINO_H
     CMP   R1, R4
     BLE   clamp_done_y
     MOV   R1, R4             ; Clamp to Width if x > Width
@@ -1057,6 +1049,7 @@ get_random  FUNCTION
     UDIV R0,R0, R3
     MUL  R5, R3, R0   ; Rtemp = Rm × Ra
     SUB  R0, R2, R5   ; Rd = Rn - Rtemp
+
 
 
 
