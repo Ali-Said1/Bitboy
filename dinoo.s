@@ -1,5 +1,5 @@
 CAC_W          EQU      40
-CAC_H          EQU      80
+CAC_H          EQU      60
 BIRD_W         EQU      40
 BIRD_H         EQU      20
 GROUND_Y       EQU      280
@@ -48,7 +48,6 @@ DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
 DINO_X  DCW 20
 DINO_Y  DCW 180
 DINO_W DCW 40
-DINO_W DCW 40
 DINO_H DCW 100
 
 LAST_SPAWN_TIME  DCW 0
@@ -79,6 +78,7 @@ OB3_Y DCW 0
 OB3_W DCW 0
 OB3_H DCW 0
 sys_time DCD 100
+DINO_PRNG_STATE DCD 0
 DINO_VELOCITY DCB 0
 ACC          DCB      -2
 
@@ -121,7 +121,6 @@ Reset_Handler
     ;intialize dino object width
     LDR     R0,=DINO_W
     MOV     R1,#40 
-    MOV     R1,#40 
     STRH    R1,[R0]
     ;intialize dino object height
     LDR     R0,=DINO_H
@@ -130,16 +129,7 @@ Reset_Handler
     ;intialize delay
     LDR     R0,=DELAY
     MOV     R1,#20
-    ;intialize delay
-    LDR     R0,=DELAY
-    MOV     R1,#20
     STRH    R1,[R0]
-
-    ;intialize jump condition
-    LDR     R0,=JUMP_CONDITION
-    MOV     R1,#0
-    STRB    R1,[R0]
-
 
     ;intialize jump condition
     LDR     R0,=JUMP_CONDITION
@@ -149,33 +139,28 @@ Reset_Handler
     LTORG
 	
 game_loop
-    CMP R12, #1
-	BLEQ DINO_JUMP
-	CMP R12, #2
-	BLEQ DINO_CROUCH
+
+    BL PROCESS_INPUT
     BL check_for_objects ;spawn objects if needed
     BL move_object ;move Obstacle
     BL check_for_despawn
-    LDR R4,=DINOSTATE
-    LDRB R4,[R4]
-    CMP R4, #2
-    BLEQ VISUAL_CROUCH
+
 
     
-    LDR R1, =OB1_X
-    BL check_collision   
-    CMP R3, #0
-    BNE game_over
-    
-    LDR R1, =OB2_X
-    BL check_collision   
-    CMP R3, #0
-    BNE game_over
-    
-    LDR R1, =OB3_X
-    BL check_collision
-    CMP R3, #0
-    BNE game_over
+    ;LDR R1, =OB1_X
+    ;BL check_collision   
+    ;CMP R3, #0
+    ;BNE game_over
+    ;
+    ;LDR R1, =OB2_X
+    ;BL check_collision   
+    ;CMP R3, #0
+    ;BNE game_over
+    ;
+    ;LDR R1, =OB3_X
+    ;BL check_collision
+    ;CMP R3, #0
+    ;BNE game_over
 
     
 
@@ -184,30 +169,54 @@ game_loop
     ADD R1, R1, #17
     STR R1, [R0]
     
-    BL UNCROUCH
-    
     BL apply_vel_y
 	BL UPDATE_VELOCITY
     ;BL check_for_despawn
+    
     B game_loop
-    LTORG
     LTORG
 game_over
+    B game_over
 
-    ; Reset game state
-    BL Reset_Handler
-    B game_loop
+PROCESS_INPUT
+    PUSH {R0-R12 , LR}
+    CMP R12, #0
+    BEQ cond1
+    CMP R12, #1
+    BEQ cond2
+    CMP R12, #2
+    BEQ cond3
 
-VISUAL_CROUCH
-    PUSH {R0-R2 , LR}
-    LDR R0,=DINO_Y
-    MOV R2, #230
-    STRH R2,[R0]
-    LDR R0,=DINO_H
-    MOV R2, #CROUCH_DINO_H
-    STRH R2,[R0]
-    POP {R0-R2 , LR}
+
+cond1
+    LDR R0,=DINOSTATE
+    LDRB R2,[R0]
+    CMP R2, #2
+    BLEQ UNCROUCH
+    B return_input
+cond2
+    LDR R0,=DINOSTATE
+    LDRB R2,[R0]
+    CMP R2, #1
+    BEQ return_input
+    BL UNCROUCH
+    BL DINO_JUMP
+    B return_input
+cond3
+    LDR R0,=DINOSTATE
+    LDRB R2,[R0]
+    CMP   R2, #0
+    BNE return_input
+    BL DINO_CROUCH
+    B return_input
+
+return_input
+    POP {R0-R12 , LR}
     BX LR
+
+
+
+
 
 
 
@@ -269,12 +278,15 @@ end_update_velocity
 DINO_JUMP
     PUSH {R0-R12 , LR}
 
-    LDR R0, =DINO_Y
-    LDRH R1, [R0]
-    ADD R1, R1, #NORMAL_DINO_H
-    CMP R1, #GROUND_Y
-    BNE return_to_JUMP_DINO
-
+    LDR R0,=DINOSTATE
+    MOV R2, #1
+    STRB R2,[R0]
+    LDR R0,=DINO_Y
+    MOV R2, #180
+    STRH R2,[R0]
+    LDR R0,=DINO_H
+    MOV R2, #NORMAL_DINO_H
+    STRH R2,[R0]
     ; Set initial velocity and upward acceleration
     LDR R0, =DINO_VELOCITY
     MOV R1, #-50
@@ -285,7 +297,6 @@ DINO_JUMP
 
 return_to_JUMP_DINO
     POP {R0-R12 , LR}
-
     BX LR
 
 
@@ -295,10 +306,11 @@ return_to_JUMP_DINO
 DINO_CROUCH
     PUSH {R0-R2 , LR}
     LDR R0,=DINO_Y
-    LDRH R1,[R0]
-    ADD R1, R1, #NORMAL_DINO_H
-    CMP R1, #GROUND_Y
-    BNE return_from_crouch
+    MOV R2, #230
+    STRH R2,[R0]
+    LDR R0,=DINO_H
+    MOV R2, #CROUCH_DINO_H
+    STRH R2,[R0]
     LDR R0,=DINOSTATE
     MOV R2, #2
     STRB R2,[R0]
@@ -308,10 +320,6 @@ return_from_crouch
 
 UNCROUCH
     PUSH {R0-R2 , LR}
-    LDR R0,=DINOSTATE
-    LDR R1, [R0]
-    CMP R1, #2
-    BNE return_uncrouch
     LDR R0,=DINO_Y
     MOV R2, #180
     STRH R2,[R0]
@@ -377,8 +385,11 @@ check_for_objects
     LDR R11, =LAST_SPAWN_TIME
     LDR R11, [R11]                  ;R11 = LAST_SPAWN_TIME
     SUB R11, R10 ,R11                ;R11 = sys_time - LAST_SPAWN_TIME
-    MOV.W R9, #6000
-    CMP R11, R9                      ;if sys_time-LAST_SPAWN_TIME <5000  dont spawn anything
+    MOV R3, #3000
+    BL get_random
+    MOV R9, #5000
+    ADD R9, R0
+    CMP R11, R9                      ;if sys_time-LAST_SPAWN_TIME
     BLT end_check_for_objects
 
     
@@ -399,8 +410,7 @@ check_three
     LDR R1, =OB3_ACTIVE
     LDRB R1, [R1]
     CMP R1, #0
-    BNE check_two  ;if ob1 isnt active spawn one 
-    BL spawn_object3  ;if ob1 isnt active spawn one 
+    BLEQ spawn_object3  ;if ob1 isnt active spawn one 
 
 end_check_for_objects
     POP {R0-R12 , LR}
@@ -781,8 +791,8 @@ check_collision   ;output in R3
     LDRH R8, [R1, #4]     ; Object Width
     LDRH R9, [R1, #6]    ; Object Height
     ; Check if object is active
-    LDRB R12, [R1, #-1]   ; Load the active status of the object (assumes active flag is stored just before object data)
-    CMP R12, #1
+    LDRB R11, [R1, #-1]   ; Load the active status of the object (assumes active flag is stored just before object data)
+    CMP R11, #1
     BNE no_collision       ; If not active, no collision
 
     ; Check X overlap
@@ -943,6 +953,9 @@ check_upper_bound_y
     LDR R0,=DINO_VELOCITY
     MOV R3, #0
     STRH R3, [R0]            ; Load the value of acc
+    LDR R0,=DINOSTATE
+    MOV R3, #0
+    STRB R3, [R0]
 clamp_done_y
     LDR   R0, =DINO_Y
     STRH   R1, [R0]           ; Store updated DINO_Y
@@ -999,6 +1012,46 @@ done_decimal_y
     POP {R0-R5, LR} 
     BX LR
     
+
+
+; Function: get_random
+; Inputs: R3 = max - 1
+; Outputs: R0 = [0, R3 -1]
+get_random
+    PUSH    {R1-R5, LR}        ; Save R4, R5, and LR
+
+    ; Save R3 (range bound)
+    MOV    R5, R3              ; R5 = R3 (preserve R3)
+
+    ; Generate random number
+    ; Load PRNG state
+    LDR     R4, =DINO_PRNG_STATE     ; R4 = address of prng_state
+    LDR     R0, [R4]            ; R0 = current state
+
+    ; Compute: state = state * 1664525
+    MOV    R1, #0x60D          ; Lower 16 bits of multiplier
+    MOVT    R1, #0x196          ; Upper 16 bits of multiplier
+    MUL    R2, R0, R1          ; R2 = state * 1664525 (low 32 bits)
+
+    ; Add increment: 1013904223 = 0x3C6EF35F
+    MOV    R1, #0xF35F         ; Lower 16 bits of increment
+    MOVT    R1, #0x3C6E         ; Upper 16 bits of increment
+    ADD    R2, R2, R1          ; R2 = R2 + 1013904223 (mod 2^32 via overflow)
+
+    ; Store new state
+    STR     R2, [R4]            ; prng_state = new state
+
+    ; Move result to R0
+    MOV    R0, R2              ; R0 = random number
+
+    UDIV R0,R0, R3
+    MUL  R5, R3, R0   ; Rtemp = Rm × Ra
+    SUB  R0, R2, R5   ; Rd = Rn - Rtemp
+
+
+
+    POP     {R1-R5, LR}        ; Restore R4, R5, and return
+    BX LR
 
 
     END
