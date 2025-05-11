@@ -1,19 +1,18 @@
-CAC_W          EQU      40
-CAC_H          EQU      60
-BIRD_W         EQU      40
-BIRD_H         EQU      20
-GROUND_Y       EQU      280
-DINO_START_X   EQU      20
-DINO_START_Y   EQU      180
-NORMAL_DINO_H  EQU      100
-CROUCH_DINO_H  EQU      50
-OBSTACLE_VELOCITY EQU      100
-
-    AREA    VECTORS, CODE, READONLY
-    EXPORT  __Vectors
-__Vectors
-    DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
-    DCD     Reset_Handler       ; Reset handler address
+    AREA DINOCONST, DATA, READONLY
+    EXPORT DINO_CAC_W
+    EXPORT DINO_CAC_H
+    EXPORT DINO_BIRD_W
+    EXPORT DINO_BIRD_H
+DINO_CAC_W          EQU      40
+DINO_CAC_H          EQU      60
+DINO_BIRD_W         EQU      40
+DINO_BIRD_H         EQU      20
+DINO_GROUND_Y       EQU      280
+DINO_START_X        EQU      20
+DINO_START_Y        EQU      180
+DINO_NORMAL_DINO_H  EQU      100
+DINO_CROUCH_DINO_H  EQU      50
+DINO_OBSTACLE_VELOCITY EQU   100
     AREA DINOVARS, DATA, READWRITE
     
     ;##########################DINO
@@ -88,11 +87,12 @@ LAST_SYS_TIME_MOVE DCD 0
 
 DINO_DELTA_Y DCW 0x0000 ; Δ position in y direction used to accumulate position change, then we take its upper byte to update position
 DINO_DELTA_Y_DECIMAL DCW 0x0000 
-    AREA CODE, CODE, READONLY
-	EXPORT Reset_Handler
-	EXPORT game_loop
+GAME_OVER_STATE DCB 0x00 
+    AREA DINOCODE, CODE, READONLY
+	EXPORT DINO_LOOP
 
-Reset_Handler
+RESET FUNCTION
+    PUSH {R0-R1, LR}
     ; Initialize dino x
     LDR     R0, =DINO_X
     MOV     R1, #DINO_START_X    ; Initial position
@@ -105,6 +105,11 @@ Reset_Handler
 
     ; Initialize dino state
     LDR     R0, =DINOSTATE
+    MOV     R1, #0
+    STRB    R1, [R0]
+
+    ; Initialize GAME_OVER_STATE
+    LDR     R0, =GAME_OVER_STATE
     MOV     R1, #0      ; Start moving right
     STRB    R1, [R0]
 
@@ -135,34 +140,31 @@ Reset_Handler
     LDR     R0,=JUMP_CONDITION
     MOV     R1,#0
     STRB    R1,[R0]
-
-    LTORG
-	
-game_loop
-
+    POP {R0-R1, LR}
+    BX LR
+    ENDFUNC
+DINO_LOOP FUNCTION
+    PUSH {R0-R12, LR}
     BL PROCESS_INPUT
     BL check_for_objects ;spawn objects if needed
     BL move_object ;move Obstacle
     BL check_for_despawn
 
-
+    LDR R1, =OB1_X
+    BL check_collision   
+    CMP R3, #0
+    BNE GAME_OVER
     
-    ;LDR R1, =OB1_X
-    ;BL check_collision   
-    ;CMP R3, #0
-    ;BNE game_over
-    ;
-    ;LDR R1, =OB2_X
-    ;BL check_collision   
-    ;CMP R3, #0
-    ;BNE game_over
-    ;
-    ;LDR R1, =OB3_X
-    ;BL check_collision
-    ;CMP R3, #0
-    ;BNE game_over
-
+    LDR R1, =OB2_X
+    BL check_collision   
+    CMP R3, #0
+    BNE GAME_OVER
     
+    LDR R1, =OB3_X
+    BL check_collision
+    CMP R3, #0
+    BNE GAME_OVER
+
 
     LDR R0, =sys_time
     LDR R1, [R0]
@@ -174,11 +176,20 @@ game_loop
     ;BL check_for_despawn
     
     B game_loop
-    LTORG
-game_over
-    B game_over
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 
-PROCESS_INPUT
+GAME_OVER FUNCTION
+    PUSH {R0, R1, LR}
+    LDR     R0, =GAME_OVER_STATE
+    MOV     R1, #1
+    STRB    R1, [R0]
+    POP {R0, R1, LR}
+    BX LR
+    ENDFUNC
+
+PROCESS_INPUT FUNCTION
     PUSH {R0-R12 , LR}
     CMP R12, #0
     BEQ cond1
@@ -213,6 +224,7 @@ cond3
 return_input
     POP {R0-R12 , LR}
     BX LR
+    ENDFUNC
 
 
 
@@ -220,8 +232,7 @@ return_input
 
 
 
-
-UPDATE_VELOCITY
+UPDATE_VELOCITY FUNCTION
     PUSH {R0-R12 , LR}
     LDR R0, =LAST_SYS_TIME_2
     LDR R0, [R0]            ; Load the value of sys_time
@@ -271,11 +282,10 @@ end_update_velocity
     
     POP {R0-R12 , LR}
     BX LR
+    ENDFUNC
 
-    LTORG
 
-
-DINO_JUMP
+DINO_JUMP FUNCTION
     PUSH {R0-R12 , LR}
 
     LDR R0,=DINOSTATE
@@ -298,12 +308,12 @@ DINO_JUMP
 return_to_JUMP_DINO
     POP {R0-R12 , LR}
     BX LR
-
+    ENDFUNC
 
 
 
     
-DINO_CROUCH
+DINO_CROUCH FUNCTION
     PUSH {R0-R2 , LR}
     LDR R0,=DINO_Y
     MOV R2, #230
@@ -317,8 +327,8 @@ DINO_CROUCH
 return_from_crouch
     POP {R0-R2 , LR}
     BX LR
-
-UNCROUCH
+    ENDFUNC
+UNCROUCH FUNCTION
     PUSH {R0-R2 , LR}
     LDR R0,=DINO_Y
     MOV R2, #180
@@ -332,7 +342,8 @@ UNCROUCH
 return_uncrouch
     POP {R0-R2 , LR}
     BX LR
-check_for_despawn
+    ENDFUNC
+check_for_despawn   FUNCTION
     PUSH {R0-R12, LR}
     LDR R0, =OB1_ACTIVE
     LDRB R1, [R0]           ; Load OB1_ACTIVE
@@ -373,9 +384,9 @@ check_ob3_despawn
 end_despawn
     POP {R0-R12, LR}
     BX LR
+    ENDFUNC
 
-
-check_for_objects
+check_for_objects   FUNCTION
     PUSH {R0-R12 , LR}
 
     
@@ -415,10 +426,10 @@ check_three
 end_check_for_objects
     POP {R0-R12 , LR}
     BX LR
+    ENDFUNC
 
 
-
-spawn_object1
+spawn_object1 FUNCTION
     PUSH {R0-R12 , LR}
     MOV R0, #1              ;to indicate the object number
     MOV R7, #1              ;object became active
@@ -440,9 +451,9 @@ spawn_bird1    ;if false spawn a bird
 end_spawn_object1
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one
+    ENDFUNC
 
-
-spawn_object2
+spawn_object2   FUNCTION
     PUSH {R0-R12 , LR}
     MOV R0, #2              ;to indicate the object number
     MOV R7, #1              ;object became active
@@ -464,9 +475,9 @@ spawn_bird2    ;if false spawn a bird
 end_spawn_object2        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one1
+    ENDFUNC
 
-
-spawn_object3
+spawn_object3   FUNCTION
     PUSH {R0-R12 , LR}
     MOV R0, #3              ;to indicate the object number
     MOV R7, #1              ;object became active
@@ -488,11 +499,11 @@ spawn_bird3    ;if false spawn a bird
 end_spawn_object3        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one
+    ENDFUNC
 
 
 
-
-DINO_DEFINE_OB_TYPE  ;R4 has obj type address
+DINO_DEFINE_OB_TYPE  FUNCTION;R4 has obj type address
     PUSH {R0-R12 ,LR}
     LDR R0, =sys_time       ; Get the address of sys_time
     LDR R0, [R0]            ; Load the value of sys_time
@@ -510,13 +521,13 @@ CHOOSE_BIRD
 RETURN_FROM_OB_TYPE
     POP {R0-R12 ,LR}
     BX LR
+    ENDFUNC
 
 
 
 
 
-
-spawn_bird    ;R0 has the object number
+spawn_bird   FUNCTION ;R0 has the object number
     PUSH {R0-R12 , LR}
 
     CMP R0 , #1
@@ -613,10 +624,10 @@ end_spawn_bird
 
     POP {R0-R12 , LR}
     BX LR    ;to check again for the other objects
+    ENDFUNC
 
 
-
-spawn_cactus    ;R0 has the object number
+spawn_cactus   FUNCTION;R0 has the object number
     PUSH {R0-R12 , LR}
 
     CMP R0, #1
@@ -703,10 +714,10 @@ end_spawn_cactus
 
     POP {R0-R12 , LR}
     BX LR          ;to check again for the other objects
+    ENDFUNC
 
 
-
-move_object
+move_object FUNCTION
 
     PUSH {R0-R12 , LR}
     LDR R0, =LAST_SYS_TIME_MOVE
@@ -769,14 +780,13 @@ notobj2
 end_move_object
     POP {R0-R12, LR}
     BX LR
-
-    LTORG
+    ENDFUNC
    
 ; R0 = pointer to Dino (x, y, w, h)
 ; R1 = pointer to Object (x, y, w, h)
 ; returns Z = 1 if collision detected, Z = 0 if not (can use BEQ/BNE)
 
-check_collision   ;output in R3
+check_collision   FUNCTION  ;output in R3
     PUSH {R4-R7, LR}
     LDR R0, =DINO_X
     ; Load Dino values
@@ -822,13 +832,13 @@ no_collision
     MOV R3, #0           ; Return 0 = no collision
     POP {R4-R7, LR}
     BX LR
-
+    ENDFUNC
 
 ; A / B = C
 ; A % B = D
 ; Inputs: R0 = A, R1 = B
 ; Output: R3 = Quotient, R2 = Remainder
-DIVIDE 
+DIVIDE  FUNCTION
     PUSH {R0, R1, R2, LR}
     MOV  R2, R0             ; R2 = R0
     UDIV R0, R0, R1         ; R0 = R0 // R1
@@ -837,23 +847,23 @@ DIVIDE
 
     POP {R0, R1, R2, LR}
     BX LR
-    
+    ENDFUNC
 
 
 ; A % B = C
 ; Inputs: R0 = A, R1 = B
 ; Output: R2 = C
-MODULO 
+MODULO  FUNCTION
     PUSH {R0, R1, LR}
     MOV  R2, R0             ; R2 = R0
     UDIV R0, R0, R1         ; R0 = R0 // R1
     MLS R2, R1, R0, R2      ; R2 = R2 - R1 * R0
     POP {R0, R1, LR}
     BX LR
-    
+    ENDFUNC
 
 
-apply_vel_y
+apply_vel_y FUNCTION
     PUSH {R0-R4, LR}          ; Save registers
 
     ; Load current systime and last systime
@@ -968,11 +978,11 @@ clamp_done_y
 apply_vel_y_done
     POP {R0-R4, LR}           ; Restore registers
     BX LR
-    
+    ENDFUNC
 
 ; R2 = Integer Part of accumulation
 ; R4 = Decimal part from v * dt
-ADD_DECIMAL_TO_WHOLE_Y 
+ADD_DECIMAL_TO_WHOLE_Y  FUNCTION
     PUSH {R0-R5, LR}
     LDR   R0, =DINO_DELTA_Y_DECIMAL
     LDRH  R5, [R0]           ; R5 = DINO_DELTA_Y_DECIMAL
@@ -1011,13 +1021,13 @@ decimal_positive_y
 done_decimal_y
     POP {R0-R5, LR} 
     BX LR
-    
+    ENDFUNC
 
 
 ; Function: get_random
 ; Inputs: R3 = max - 1
 ; Outputs: R0 = [0, R3 -1]
-get_random
+get_random  FUNCTION
     PUSH    {R1-R5, LR}        ; Save R4, R5, and LR
 
     ; Save R3 (range bound)
@@ -1052,6 +1062,6 @@ get_random
 
     POP     {R1-R5, LR}        ; Restore R4, R5, and return
     BX LR
-
+    ENDFUNC
 
     END
