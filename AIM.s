@@ -1,26 +1,21 @@
-		; Constants
+		AREA  AIMCONSTS, DATA, READONLY
+        ; Constants
 Width       EQU 480
 Height      EQU 320
 TARGET_R		EQU 10
-		AREA    VECTORS, CODE, READONLY
-        EXPORT  __Vectors
-__Vectors
-        DCD     0x20005000          ; Initial SP value (top of 400KB simulated SRAM)
-        DCD     Reset_Handler   ; Reset handler address
-
-        AREA	DATA, DATA, READWRITE
+        AREA	AIMDATA, DATA, READWRITE
         ; IMPORT systime
         EXPORT AIM_POS
         EXPORT AIM_SCORE
-        EXPORT OBJ1_POS
-        EXPORT OBJ2_POS
-        EXPORT OBJ3_POS
+        EXPORT AIM_OBJ1_POS
+        EXPORT AIM_OBJ2_POS
+        EXPORT AIM_OBJ3_POS
         EXPORT AIM_VEL
         EXPORT AIM_PRNG_STATE
 AIM_POS  DCD 0           ; Aim absolute position XXXXYYYY
-OBJ1_POS DCW 0           ; OBJ1 grid position XXYY ([0, 47], [0, 31])
-OBJ2_POS DCW 0           ; OBJ2 grid position XXYY ([0, 47], [0, 31])
-OBJ3_POS DCW 0           ; OBJ3 grid position XXYY ([0, 47], [0, 31])
+AIM_OBJ1_POS DCW 0           ; OBJ1 grid position XXYY ([0, 47], [0, 31])
+AIM_OBJ2_POS DCW 0           ; OBJ2 grid position XXYY ([0, 47], [0, 31])
+AIM_OBJ3_POS DCW 0           ; OBJ3 grid position XXYY ([0, 47], [0, 31])
 AIM_VEL  DCW 0           ; Aim velocity XXYY px/ SECOND
 AIM_POS_DELTA_X DCW 0x0000 
 AIM_POS_DELTA_X_DECIMAL DCW 0x0000 
@@ -37,37 +32,17 @@ AIM_LAST_SYSTIME
 AIM_SCORE DCB 0
 
         AREA CODE, CODE, READONLY
-        EXPORT Reset_Handler
+        EXPORT AIM_LOOP
+        EXPORT AIM_SHOOT
+        EXPORT AIM_RESET
         
-Reset_Handler FUNCTION
-		BL Reset
-        MOV     R0, #0
-        BL SPAWN_OBJ
-        MOV     R0, #1
-        BL SPAWN_OBJ
-        MOV     R0, #2
-        BL SPAWN_OBJ
-        LDR   r0, =AIM_VEL
-        MOV   r1, #0x00F0
-        STRH  r1, [r0]
-game_loop
-		
-        LDR   r0, =AIM_SYSTIME
-        LDR   r1, [r0]
-        ADD   r1, #17
-        STR  r1, [r0]
-		LDR   r0, =AIM_VEL
-        STRH  r10, [r0]
-
+AIM_LOOP FUNCTION
         BL apply_vel_x
         BL apply_vel_y
-		CMP R12, #1
-        BLEQ SHOOT
-		
 		B game_loop
 	ENDFUNC
 
-SHOOT FUNCTION
+AIM_SHOOT FUNCTION
     PUSH {R0-R12, LR}          ; Save registers
 
     LDR   R0, =AIM_POS        ; Load AIM_POS
@@ -82,7 +57,7 @@ loop_objects
 
     ; Compute address of object position: OBJ_POS_BASE + R0 * 2
     LSL   R3, R0, #1          ; R3 = R0 * 2 (each object takes 2 bytes)
-    LDR   R4, =OBJ1_POS       ; R4 = base address
+    LDR   R4, =AIM_OBJ1_POS       ; R4 = base address
     ADD   R4, R4, R3          ; R4 = address of this object's position
 
     LDRH  R6, [R4]            ; R6 = Object position (XXYY)
@@ -204,7 +179,7 @@ CALC_DISTANCE FUNCTION
 
 
 
-Reset FUNCTION
+AIM_RESET FUNCTION
     PUSH {LR}
     
     ; Initialize variables in memory
@@ -216,15 +191,15 @@ Reset FUNCTION
     MOV   r1, #0x0000              ; Initial Aim velocity (XXYY = 0)
     STRH  r1, [r0]
 
-    LDR   r0, =OBJ1_POS
+    LDR   r0, =AIM_OBJ1_POS
     MOV   r1, #0x9090              ; Initial OBJ1 grid position (XXYY = 0)
     STRH  r1, [r0]
 
-    LDR   r0, =OBJ2_POS
+    LDR   r0, =AIM_OBJ2_POS
     MOV   r1, #0x1390              ; Initial OBJ2 grid position (XXYY = 0)
     STRH  r1, [r0]
 
-    LDR   r0, =OBJ3_POS
+    LDR   r0, =AIM_OBJ3_POS
     MOV   r1, #0x0000              ; Initial OBJ3 grid position (XXYY = 0)
     STRH  r1, [r0]
 
@@ -233,6 +208,12 @@ Reset FUNCTION
     LDR   r1, =0x12345678     ; Re-set initial seed
     STR   r1, [r0]
 
+    MOV     R0, #0
+    BL SPAWN_OBJ
+    MOV     R0, #1
+    BL SPAWN_OBJ
+    MOV     R0, #2
+    BL SPAWN_OBJ
     POP {LR}
     BX LR
 	ENDFUNC
@@ -244,7 +225,7 @@ SPAWN_OBJ FUNCTION
 
     ; Compute address of object position: OBJ_POS_BASE + R0 * 2
     LSL     R1, R0, #1          ; R1 = R0 * 2 (each object takes 2 bytes)
-    LDR     R2, =OBJ1_POS       ; R2 = base address
+    LDR     R2, =AIM_OBJ1_POS       ; R2 = base address
     ADD     R2, R2, R1          ; R2 = address of this object's position
 
     ; Get random x (0 to 45)
@@ -277,7 +258,7 @@ DESPAWN_OBJ FUNCTION
 
     ; Compute address of object position: OBJ_POS_BASE + R0 * 2
     LSL     R1, R0, #1          ; R1 = R0 * 2 (each object takes 2 bytes)
-    LDR     R2, =OBJ1_POS       ; R2 = base address
+    LDR     R2, =AIM_OBJ1_POS       ; R2 = base address
     ADD     R2, R2, R1          ; R2 = address of this object's position
 
     MOV     R4, #0
