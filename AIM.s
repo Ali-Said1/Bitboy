@@ -1,10 +1,21 @@
-		AREA  AIMCONSTS, DATA, READONLY
+; I replaced every AIM_SYSTIME with systime
+; I updated AIM_PRNG_STATE with the sys_time in main before calling AIM_RESET & AIM_SHOOT
+        AREA  AIMCONSTS, DATA, READONLY
         ; Constants
+        EXPORT TARGET_R
+        EXPORT AIM_CURSOR_COLOR
+        EXPORT AIM_OBJ_COLOR
+        EXPORT AIM_BCK
 Width       EQU 480
 Height      EQU 320
 TARGET_R		EQU 10
+
+AIM_BCK     EQU 0
+
+AIM_CURSOR_COLOR    EQU 0xFFE0
+AIM_OBJ_COLOR    EQU 0xF800
         AREA	AIMDATA, DATA, READWRITE
-        ; IMPORT systime
+        IMPORT sys_time
         EXPORT AIM_POS
         EXPORT AIM_SCORE
         EXPORT AIM_OBJ1_POS
@@ -24,8 +35,8 @@ AIM_POS_DELTA_Y DCW 0x0000 ; Δ position in y direction used to accumulate posit
 AIM_POS_DELTA_Y_DECIMAL DCW 0x0000 
 AIM_PRNG_STATE
     DCD     0x12815678    ; INITIAL SEED FOR THE PRNG
-AIM_SYSTIME
-    DCD     0    ; SYSTIME (THIS IS VIRTUAL)
+;sys_time
+;    DCD     0    ; SYSTIME (THIS IS VIRTUAL)
 AIM_LAST_SYSTIME
     DCD     0    ; SYSTIME OF LAST FRAME
 
@@ -37,9 +48,11 @@ AIM_SCORE DCB 0
         EXPORT AIM_RESET
         
 AIM_LOOP FUNCTION
+    PUSH {LR}
         BL apply_vel_x
         BL apply_vel_y
-		B game_loop
+    POP {LR}
+    BX LR
 	ENDFUNC
 
 AIM_SHOOT FUNCTION
@@ -78,7 +91,7 @@ loop_objects
     LSL   R5, R5, #16         ; Shift X * 10 to upper word
     ORR   R6, R5, R4          ; Combine X * 10 (upper) and Y * 10 (lower)
 
-    
+
     ; R6 = OBJ Position, R7 = AIM Position
     ; Call CALC_DISTANCE
     BL    CALC_DISTANCE       ; R5 = distance
@@ -275,12 +288,12 @@ apply_vel_x FUNCTION
     PUSH {R0-R4, LR}          ; Save registers
 
     ; Load current systime and last systime
-    LDR   R0, =AIM_SYSTIME
-    LDR   R1, [R0]            ; R1 = AIM_SYSTIME
+    LDR   R0, =sys_time
+    LDR   R1, [R0]            ; R1 = sys_time
     LDR   R0, =AIM_LAST_SYSTIME
     LDR   R2, [R0]            ; R2 = AIM_LAST_SYSTIME
 
-    ; Calculate dt = AIM_SYSTIME - AIM_LAST_SYSTIME
+    ; Calculate dt = sys_time - AIM_LAST_SYSTIME
     SUB   R3, R1, R2          ; R3 = dt
 
     ; Load AIM velocity and AIM_POS_DELTA_X
@@ -435,12 +448,12 @@ apply_vel_y FUNCTION
     PUSH {R0-R4, LR}          ; Save registers
 
     ; Load current systime and last systime
-    LDR   R0, =AIM_SYSTIME
-    LDR   R1, [R0]            ; R1 = AIM_SYSTIME
+    LDR   R0, =sys_time
+    LDR   R1, [R0]            ; R1 = sys_time
     LDR   R0, =AIM_LAST_SYSTIME
     LDR   R2, [R0]            ; R2 = AIM_LAST_SYSTIME
 
-    ; Calculate dt = AIM_SYSTIME - AIM_LAST_SYSTIME
+    ; Calculate dt = sys_time - AIM_LAST_SYSTIME
     SUB   R3, R1, R2          ; R3 = dt
 
     ; Update AIM_LAST_SYSTIME

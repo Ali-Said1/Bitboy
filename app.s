@@ -167,6 +167,22 @@ JOYSTICK_NEUTRAL_HIGH   DCW 2200    ; Upper threshold for neutral zone (approx 4
     IMPORT CHECK_WINNING
     IMPORT CurrentPlayer
     ;===============================END XO Imports================================
+    ;===============================Start AIM Imports================================
+    IMPORT AIM_VEL
+    IMPORT AIM_PRNG_STATE
+    IMPORT AIM_SCORE
+    IMPORT AIM_POS
+    IMPORT AIM_OBJ1_POS
+    IMPORT AIM_OBJ2_POS
+    IMPORT AIM_OBJ3_POS
+    IMPORT TARGET_R
+    IMPORT AIM_BCK
+    IMPORT AIM_CURSOR_COLOR
+    IMPORT AIM_OBJ_COLOR
+    IMPORT AIM_RESET
+    IMPORT AIM_SHOOT
+    IMPORT AIM_LOOP
+    ;===============================END AIM Imports================================
 	IMPORT MODULO
     AREA MYCODE, CODE, READONLY
 
@@ -176,7 +192,7 @@ __main FUNCTION
 
 	BL _init
     BL TFT_INIT ; Call TFT_INIT to initialize the TFT LCD
-    LDR R0, =0x0000 ; Load the color value
+    LDR R0, =0x0 ; Load the color value
     BL FILL_SCREEN ; Call FILL_SCREEN to fill the screen with the color
     BL RESET_MENU
     BL PONG_RESET
@@ -198,6 +214,9 @@ MAIN_LOOP
 
     CMP R11, #3
     BEQ DRAW_GAME3_LBL
+
+    CMP R11, #5
+    BEQ DRAW_GAME5_LBL ; Aim Game
 	B END_MAINLOOP
 DRAW_GAME1_LBL
     BL DRAW_GAME1
@@ -205,6 +224,9 @@ DRAW_GAME1_LBL
 
 DRAW_GAME3_LBL
     BL DRAW_GAME3
+    B END_MAINLOOP
+DRAW_GAME5_LBL
+    BL DRAW_GAME5
     B END_MAINLOOP
 END_MAINLOOP
 	B MAIN_LOOP
@@ -381,20 +403,11 @@ ADC_CAL_WAIT
 	;orr r2, r2, #(1 << 5)
     str r2, [r1]
 
-    ; CR2: ADON=1 (already on), CONT=0 (single conversion), ALIGN=0 (right), SWSTART for trigger
+    ; CR2: ADON=1 (already on), CONT=1 (continuous conversion), ALIGN=0 (right)
     ldr r0, =ADC1_BASE
     ldr r1, =ADC1_CR2_OFFSET
     add r1, r0, r1 ; Address of ADC_CR2
-    ldr r2, [r1]
-    bic r2, r2, #ADC_CR2_CONT    ; Single conversion mode
-    bic r2, r2, #ADC_CR2_ALIGN   ; Right alignment
-    ; Set external trigger to SWSTART (111 for EXTSEL bits 20-17 in CR2)
-    orr r2, r2, #0x0000000 ; 0b111 << 17 = 0x00E0000
-    bic r2, r2, #(1 << 20)     ; EXTTRIG = 1 (Enable external trigger for regular channels)
-                               ; Actually, for SWSTART, EXTTRIG might not be needed.
-                               ; But let's ensure SWSTART is the source.
-                               ; Datasheet says for SWSTART, EXTTRIG should be set.
-    orr r2, r2, #(1 << 1) ; Cont
+    MOV R2, #3 ; CONT AND ADON
     str r2, [r1]
 
     ;##################################END ADC1 config############################################
@@ -589,6 +602,8 @@ JS_Y_COMPARE_55
     MOVLE R1, #0
     SUBGT R1, R1, #50
 JS_Y_UPDATE_VAL
+    MOV R2, #-1
+    MUL R1, R1, R2 ; To Make it start at top left
     LDR R0, =JOYSTICK_Y_VALUE
     STRB R1, [R0]
     
@@ -955,6 +970,108 @@ DIAGONAL2_LOOP
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+; DRAW_HOLLOW_CIRCLE Function
+; R6 = center X coordinate
+; R7 = center Y coordinate
+; R8 = radius
+; R9 = color (16-bit RGB565 format)
+DRAW_HOLLOW_CIRCLE FUNCTION
+    PUSH {R0-R12, LR}
+    
+    ; Save parameters
+    MOV R0, R6    ; xc = center X
+    MOV R1, R7    ; yc = center Y
+    MOV R2, R8    ; r = radius
+    MOV R3, R9    ; color
+    
+    ; Initialize variables
+    MOV R4, #0    ; x = 0
+    MOV R5, R2    ; y = r
+    MOV R6, #0    ; d = 0
+    
+    ; Calculate initial decision parameter
+    MOV R7, #3
+    SUB R7, R7, R2, LSL #1  ; d = 3 - 2*r
+    
+HOLLOW_CIRCLE_LOOP
+    ; Draw 8 octants
+    BL DRAW_HOLLOW_CIRCLE_POINTS
+    
+    ; Update decision parameter
+    CMP R7, #0
+    BLT HOLLOW_CIRCLE_D_NEG
+    
+    ; d >= 0
+    SUB R7, R7, R5, LSL #2  ; d = d - 4*y
+    ADD R7, R7, #4          ; d = d + 4
+    SUB R5, R5, #1          ; y = y - 1
+    
+HOLLOW_CIRCLE_D_NEG
+    ADD R7, R7, R4, LSL #2  ; d = d + 4*x
+    ADD R7, R7, #6          ; d = d + 6
+    ADD R4, R4, #1          ; x = x + 1
+    
+    ; Check if we're done
+    CMP R4, R5
+    BLE HOLLOW_CIRCLE_LOOP
+    
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+
+; Helper function to draw points in all 8 octants
+DRAW_HOLLOW_CIRCLE_POINTS FUNCTION
+    PUSH {R0-R12, LR}
+    
+    ; Save center coordinates and color
+    MOV R10, R0    ; xc
+    MOV R11, R1    ; yc
+    MOV R12, R3    ; color
+    
+    ; Draw point in all 8 octants
+    ; (x,y)
+    ADD R0, R10, R4
+    ADD R1, R11, R5
+    BL DRAW_PIXEL
+    
+    ; (y,x)
+    ADD R0, R10, R5
+    ADD R1, R11, R4
+    BL DRAW_PIXEL
+    
+    ; (-x,y)
+    SUB R0, R10, R4
+    ADD R1, R11, R5
+    BL DRAW_PIXEL
+    
+    ; (-y,x)
+    SUB R0, R10, R5
+    ADD R1, R11, R4
+    BL DRAW_PIXEL
+    
+    ; (x,-y)
+    ADD R0, R10, R4
+    SUB R1, R11, R5
+    BL DRAW_PIXEL
+    
+    ; (y,-x)
+    ADD R0, R10, R5
+    SUB R1, R11, R4
+    BL DRAW_PIXEL
+    
+    ; (-x,-y)
+    SUB R0, R10, R4
+    SUB R1, R11, R5
+    BL DRAW_PIXEL
+    
+    ; (-y,-x)
+    SUB R0, R10, R5
+    SUB R1, R11, R4
+    BL DRAW_PIXEL
+    
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 ; ----------------------------------------------------------------------------
 ; DRAW_CIRCLE (filled)
 ;  R6 = center X
@@ -1050,7 +1167,7 @@ HLINE_LOOP
     BX      LR
 
 ; ----------------------------------------------------------------------------
-; DRAW_PIXEL (unchanged)
+; DRAW_PIXEL
 ;  R0 = X, R1 = Y, R12 = color
 ; ----------------------------------------------------------------------------
 DRAW_PIXEL
@@ -2893,6 +3010,101 @@ XO_GAME_DRAW FUNCTION
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+DRAW_GAME5 FUNCTION
+    PUSH {R0-R12, LR}
+	MOV  R5, #100
+	BL DELAY_MS
+    BL START_ADC1_CH8_CONVERSION
+    BL START_ADC1_CH9_CONVERSION
+    LDR R0, =JOYSTICK_X_VALUE
+    LDR R1, =JOYSTICK_Y_VALUE
+    LDRB R0, [R0]
+    LSL R0, R0, #8
+    LDRB R1, [R1]
+    ORR R0, R0, R1
+    LDR R1, =AIM_VEL
+    STRH R0, [R1]
+    LDR R5, =AIM_BCK
+    ;BL DRAW_AIM_OBJS
+    BL DRAW_AIM_CURSOR
+    BL AIM_LOOP
+    LDR R5, =AIM_OBJ_COLOR
+    BL DRAW_AIM_OBJS
+    LDR R5, =AIM_CURSOR_COLOR
+    BL DRAW_AIM_CURSOR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+; R5 Has color
+DRAW_AIM_CURSOR FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R6, =AIM_POS
+    LDR R6, [R6]
+    LDR R8, =0xFFFF
+    AND R7, R6, R8
+    LSR R6, R6, #16
+    LDR R8, =TARGET_R
+    MOV R9, R5
+    BL DRAW_HOLLOW_CIRCLE
+    SUB R0, R6, R8
+    MOV R1, R7
+    MOV R3, R8, LSL #1
+    MOV R4, #1
+    BL DRAW_RECT
+    MOV R0, R6
+    LDR R8, =TARGET_R
+    SUB R1, R7, R8
+    MOV R3, #1
+    MOV R4, R8, LSL #1
+    BL DRAW_RECT
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+    LTORG
+; R5 has color
+DRAW_AIM_OBJS FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R6, =AIM_OBJ1_POS
+    LDRH R6, [R6]
+    MOV R0, #10
+    AND R7, R6, #0xFF
+    LSR R6, R6, #8
+    MUL R6, R0
+    MUL R6, R0
+    LDR R8, =TARGET_R
+    ADD R6, R6, R8
+    ADD R7, R7, R8
+    MOV R9, R5
+    BL DRAW_CIRCLE
+    
+    LDR R6, =AIM_OBJ2_POS
+    LDRH R6, [R6]
+    MOV R0, #10
+    AND R7, R6, #0xFF
+    LSR R6, R6, #8
+    MUL R6, R0
+    MUL R6, R0
+    LDR R8, =TARGET_R
+    ADD R6, R6, R8
+    ADD R7, R7, R8
+    MOV R9, R5
+    BL DRAW_CIRCLE
+    
+    LDR R6, =AIM_OBJ3_POS
+    LDRH R6, [R6]
+    MOV R0, #10
+    AND R7, R6, #0xFF
+    LSR R6, R6, #8
+    MUL R6, R0
+    MUL R6, R0
+    LDR R8, =TARGET_R
+    ADD R6, R6, R8
+    ADD R7, R7, R8
+    MOV R9, R5
+    BL DRAW_CIRCLE
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -3369,8 +3581,10 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     BEQ GAME2_INT2_HANDLER
     CMP R11, #3
     BEQ GAME3_INT2_HANDLER
-   CMP R11, #4
-   BEQ GAME4_INT2_HANDLER
+    CMP R11, #4
+    BEQ GAME4_INT2_HANDLER
+    CMP R11, #5
+    BEQ.W GAME5_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -3389,6 +3603,8 @@ MENU_INT2_HANDLER
     BEQ RESET_SNAKE_LBL
     CMP R11, #4
     BEQ RESET_XO_LBL
+    CMP R11, #5
+    BEQ RESET_AIM_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
@@ -3417,6 +3633,14 @@ RESET_XO_LBL
     BL XO_INIT_GAME
     BL DRAW_GAME4
     B skip_toggle2
+
+RESET_AIM_LBL
+    LDR R0, =AIM_PRNG_STATE
+    LDR R1, =sys_time
+    LDR R1, [R1]
+    STR R1, [R0]
+    BL AIM_RESET
+    B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
 
@@ -3432,7 +3656,7 @@ GAME2_INT2_HANDLER
     BL DRAW_MAZE_PLAYER ; Draw the player block
     B skip_toggle2
 ; ##########END Game2 Handler##########
-; ##########Start Game3 Hanlder##########
+; ##########Start Game3 Handler##########
 GAME3_INT2_HANDLER
 	LDR R0, =INPUT_BUFFER
 	LDRB R0, [R0]
@@ -3447,8 +3671,8 @@ GAME3_INT2_HANDLER
 	MOV R1, #1
 	STRB R1, [R0]
 	B skip_toggle2
-; ##########END Game3 Hanlder##########
-; ##########Start Game4 Hanlder##########
+; ##########END Game3 Handler##########
+; ##########Start Game4 Handler##########
 GAME4_INT2_HANDLER
     LDR R0, =GAME_STATUS
     LDRB R0, [R0]
@@ -3549,7 +3773,24 @@ XO_DRAW_RESET
     BL XO_INIT_GAME
     BL DRAW_GAME4
     B skip_toggle2
-; ##########END Game4 Hanlder##########
+; ##########END Game4 Handler##########
+GAME5_INT2_HANDLER
+    LDR R5, =AIM_BCK
+    BL DRAW_AIM_OBJS
+    BL DRAW_AIM_CURSOR
+    LDR R0, =AIM_PRNG_STATE
+    LDR R1, =sys_time
+    LDR R1, [R1]
+    STR R1, [R0]
+    BL AIM_SHOOT
+    LDR R5, =AIM_OBJ_COLOR
+    BL DRAW_AIM_OBJS
+    LDR R5, =AIM_CURSOR_COLOR
+    BL DRAW_AIM_CURSOR
+    B skip_toggle2
+; ##########Start Game5 Handler##########
+
+; ##########END Game5 Handler##########
 
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers

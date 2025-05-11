@@ -444,6 +444,11 @@
               <FileType>2</FileType>
               <FilePath>.\XO_IMAGE.s</FilePath>
             </File>
+            <File>
+              <FileName>AIM.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\AIM.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
