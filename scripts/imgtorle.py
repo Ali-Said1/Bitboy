@@ -68,5 +68,5 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 #  or just try both
 
 # ADD DIRECTORY TO IMAGE HERE
-image_to_arm_asm(image_path=os.path.join(script_dir, f'../assets/XO_LOGO.png'),
+image_to_arm_asm(image_path=os.path.join(script_dir, f'../assets/DINO_LOGO.png'),
                  output_file=os.path.join(script_dir, "RLEOutput.s"))

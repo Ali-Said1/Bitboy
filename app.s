@@ -182,7 +182,14 @@ JOYSTICK_NEUTRAL_HIGH   DCW 2200    ; Upper threshold for neutral zone (approx 4
     IMPORT AIM_RESET
     IMPORT AIM_SHOOT
     IMPORT AIM_LOOP
+    IMPORT AIM_GAME_STATE
+    IMPORT AIM_TIMER
+    IMPORT AIM_SECOND_TIMER
+    IMPORT AIM_SCORE_TIMER_COLOR
+    IMPORT AIM_LOGO
     ;===============================END AIM Imports================================
+    IMPORT MEMORY_LOGO
+    IMPORT DINO_LOGO
 	IMPORT MODULO
     AREA MYCODE, CODE, READONLY
 
@@ -202,8 +209,6 @@ __main FUNCTION
 	MOV R11, #0
     STRB R11, [R0]
 MAIN_LOOP
-    BL START_ADC1_CH8_CONVERSION
-    BL START_ADC1_CH9_CONVERSION
     LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
     LDRB R11, [R0]
     CMP		 R11, #0 ; Check if R11 is 0 (Main Menu)
@@ -427,7 +432,6 @@ ADC_CAL_WAIT
     ldr r1, [r0]  ; Set EXTI0 to EXTI3 to GPIOA
 	mov r2, #0xFFFF
     bic r1, r1, r2 ; Clear Lower 16 bits
-    orr r1, r1, #(1 << 5)
     str r1, [r0]  ; Write to AFIO_EXTICR1
     ldr r0, =AFIO_BASE
     ldr r1, =AFIO_EXTICR2_OFFSET
@@ -1231,6 +1235,42 @@ RESET_MENU FUNCTION
     ENDFUNC
 DRAW_MENU FUNCTION
     PUSH {R0-R4, LR}
+    MOV R0, #192
+    MOV R1, #14
+    LDR R3, =char_66
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R0, #208
+    MOV R1, #14
+    LDR R3, =char_73
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R0, #224
+    MOV R1, #14
+    LDR R3, =char_84
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R0, #240
+    MOV R1, #14
+    LDR R3, =char_66
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R0, #256
+    MOV R1, #14
+    LDR R3, =char_79
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R0, #272
+    MOV R1, #14
+    LDR R3, =char_89
+    MOV R4, #0xFFFF
+    MOV R5, #0
+    BL DRAW_CHAR
     ; Draw the hover rectangle around the hovered game
     LDR R0, =HOVERED_GAME_X ; Load X coordinate of hovered game
     LDR R0, [R0]
@@ -1257,14 +1297,14 @@ DRAW_MENU FUNCTION
     MOV R0, #45
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
+    LDR R3, =AIM_LOGO
     MOV R0, #190
     MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =gamelogo
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =DINO_LOGO
     MOV R0, #335
     MOV R1, #200
-    BL DRAW_IMAGE ; Call DRAW_IMAGE to draw the image
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     POP {R0-R4, LR}
     BX LR
     ENDFUNC
@@ -3012,7 +3052,11 @@ XO_GAME_DRAW FUNCTION
     ENDFUNC
 DRAW_GAME5 FUNCTION
     PUSH {R0-R12, LR}
-	MOV  R5, #100
+    LDR R0, =AIM_GAME_STATE
+    LDRB R0, [R0]
+    CMP R0, #0
+    BNE DRAW_GAME5_END
+	MOV  R5, #50
 	BL DELAY_MS
     BL START_ADC1_CH8_CONVERSION
     BL START_ADC1_CH9_CONVERSION
@@ -3025,13 +3069,15 @@ DRAW_GAME5 FUNCTION
     LDR R1, =AIM_VEL
     STRH R0, [R1]
     LDR R5, =AIM_BCK
-    ;BL DRAW_AIM_OBJS
     BL DRAW_AIM_CURSOR
     BL AIM_LOOP
     LDR R5, =AIM_OBJ_COLOR
     BL DRAW_AIM_OBJS
     LDR R5, =AIM_CURSOR_COLOR
     BL DRAW_AIM_CURSOR
+    BL AIM_DRAW_SCORE
+    BL DRAW_GAME5_TIM
+DRAW_GAME5_END
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
@@ -3070,10 +3116,8 @@ DRAW_AIM_OBJS FUNCTION
     AND R7, R6, #0xFF
     LSR R6, R6, #8
     MUL R6, R0
-    MUL R6, R0
+    MUL R7, R0
     LDR R8, =TARGET_R
-    ADD R6, R6, R8
-    ADD R7, R7, R8
     MOV R9, R5
     BL DRAW_CIRCLE
     
@@ -3083,10 +3127,8 @@ DRAW_AIM_OBJS FUNCTION
     AND R7, R6, #0xFF
     LSR R6, R6, #8
     MUL R6, R0
-    MUL R6, R0
+    MUL R7, R0
     LDR R8, =TARGET_R
-    ADD R6, R6, R8
-    ADD R7, R7, R8
     MOV R9, R5
     BL DRAW_CIRCLE
     
@@ -3096,12 +3138,91 @@ DRAW_AIM_OBJS FUNCTION
     AND R7, R6, #0xFF
     LSR R6, R6, #8
     MUL R6, R0
-    MUL R6, R0
+    MUL R7, R0
     LDR R8, =TARGET_R
-    ADD R6, R6, R8
-    ADD R7, R7, R8
     MOV R9, R5
     BL DRAW_CIRCLE
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+AIM_DRAW_SCORE FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R3, =AIM_SCORE
+    LDRB R9, [R3]
+    MOV R0, R9
+    MOV R1, #10
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    LDR R0, =454
+    LDR R1, =294
+    LDR R4, =AIM_SCORE_TIMER_COLOR
+    LDRH R4, [R4]
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R1, #10
+    UDIV R9, R1
+    MOV R0, R9
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    LDR R0, =438
+    LDR R1, =294
+    LDR R4, =AIM_SCORE_TIMER_COLOR
+    LDRH R4, [R4]
+    MOV R5, #0
+    BL DRAW_CHAR
+    MOV R1, #10
+    UDIV R9, R1
+    MOV R0, R9
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2
+    LDR R0, =422
+    LDR R1, =294
+    LDR R4, =AIM_SCORE_TIMER_COLOR
+    LDRH R4, [R4]
+    MOV R5, #0
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+DRAW_GAME5_TIM FUNCTION
+    PUSH {R0-R12, LR}
+    LDR R0, =AIM_TIMER
+    LDRB R0, [R0]
+    MOV R1, #10
+    BL MODULO
+    MOV R7, #40
+    MUL R2, R2, R7
+    LDR R3, =char_48
+    ADD R3, R3, R2 ; Units
+    MOV R0, #26
+    LDR R1, =294
+    LDR R4, =AIM_SCORE_TIMER_COLOR
+    LDRH R4, [R4]
+    MOV R5, #0
+    BL DRAW_CHAR
+    LDR R0, =AIM_TIMER
+    LDRB R0, [R0]
+    MOV R1, #10
+    UDIV R0, R1
+    MOV R7, #40
+    MUL R0, R0, R7
+    LDR R4, =AIM_SCORE_TIMER_COLOR
+    LDRH R4, [R4]
+    MOV R5, #0
+    LDR R3, =char_48
+    ADD R3, R3, R0 ; Tens
+    MOV R0, #10
+    LDR R1, =294
+    BL DRAW_CHAR
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
@@ -3775,6 +3896,10 @@ XO_DRAW_RESET
     B skip_toggle2
 ; ##########END Game4 Handler##########
 GAME5_INT2_HANDLER
+    LDR R0, =AIM_GAME_STATE
+    LDRB R0, [R0]
+    CMP R0, #0
+    BNE skip_toggle2
     LDR R5, =AIM_BCK
     BL DRAW_AIM_OBJS
     BL DRAW_AIM_CURSOR
@@ -3909,6 +4034,8 @@ SysTick_Handler PROC
     LDRB    R11, [R0] ; Load the active game variable value
     CMP     R11, #2
     BEQ     GAME2_SYSTICK_HANDLER
+    CMP R11, #5
+    BEQ     GAME5_SYSTICK_HANDLER
     B SYSTICK_END
 GAME2_SYSTICK_HANDLER
     LDR R0, =MAZE_GAME_STATE
@@ -3949,6 +4076,40 @@ GAME2_LOSE
     MOV R1, #2 ; Set the game state to lost
     STRB R1, [R0] ; Store the updated value back to the game state
     BL GAME2_LOST ; Call the game lost function
+    B SYSTICK_END
+
+GAME5_SYSTICK_HANDLER
+    LDR R0, =AIM_GAME_STATE
+    LDRB R1, [R0] ; Load the game state
+    CMP R1, #0 ; Check if the game is running
+    BNE SYSTICK_END ; If lost, skip the timer decrement
+    LDR R0, =AIM_SECOND_TIMER
+    LDRH R1, [R0]
+    CMP R1, #0
+    BEQ GAME5_DEC_TIM
+    SUB R1, R1, #1
+    STRH R1, [R0]
+    B SYSTICK_END
+GAME5_DEC_TIM
+	LDR R0, =AIM_SECOND_TIMER
+	LDR R1, =999
+	STRH R1, [R0]
+    LDR R0, =AIM_TIMER
+    LDRB R1, [R0] ; Load the second timer value
+    CMP R1, #0
+    BEQ GAME5_OVER
+    SUB R1, R1, #1 ; Decrement the second timer value
+    STRB R1, [R0] ; Store the updated value back to the second timer
+    B SYSTICK_END
+GAME5_OVER
+    LDR R0, =AIM_GAME_STATE
+    MOV R1, #1
+    STRB R1, [R0] ; Update the game state
+    LDR R0, =AIM_SCORE_TIMER_COLOR
+    LDR R1, =0xF800
+    STRH R1, [R0]
+    BL AIM_DRAW_SCORE
+    BL DRAW_GAME5_TIM
     B SYSTICK_END
 SYSTICK_END
 	POP     {R0, R1,LR}            ; Restore registers
