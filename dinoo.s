@@ -113,10 +113,7 @@ DINO_RESET FUNCTION
     MOV     R1, #0      ; Start moving right
     STRB    R1, [R0]
 
-    ; intialize sys time
-    LDR     R0,=sys_time
-    MOV     R1,#0
-    STR    R1,[R0]
+
 
     ;intialize spawntime
     LDR     R0,=LAST_SPAWN_TIME
