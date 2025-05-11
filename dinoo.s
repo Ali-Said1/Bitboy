@@ -48,6 +48,7 @@ DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
 DINO_X  DCW 20
 DINO_Y  DCW 180
 DINO_W DCW 40
+DINO_W DCW 40
 DINO_H DCW 100
 
 LAST_SPAWN_TIME  DCW 0
@@ -120,6 +121,7 @@ Reset_Handler
     ;intialize dino object width
     LDR     R0,=DINO_W
     MOV     R1,#40 
+    MOV     R1,#40 
     STRH    R1,[R0]
     ;intialize dino object height
     LDR     R0,=DINO_H
@@ -128,7 +130,16 @@ Reset_Handler
     ;intialize delay
     LDR     R0,=DELAY
     MOV     R1,#20
+    ;intialize delay
+    LDR     R0,=DELAY
+    MOV     R1,#20
     STRH    R1,[R0]
+
+    ;intialize jump condition
+    LDR     R0,=JUMP_CONDITION
+    MOV     R1,#0
+    STRB    R1,[R0]
+
 
     ;intialize jump condition
     LDR     R0,=JUMP_CONDITION
@@ -180,8 +191,12 @@ game_loop
     ;BL check_for_despawn
     B game_loop
     LTORG
+    LTORG
 game_over
-    B game_over
+
+    ; Reset game state
+    BL Reset_Handler
+    B game_loop
 
 VISUAL_CROUCH
     PUSH {R0-R2 , LR}
@@ -270,6 +285,7 @@ DINO_JUMP
 
 return_to_JUMP_DINO
     POP {R0-R12 , LR}
+
     BX LR
 
 

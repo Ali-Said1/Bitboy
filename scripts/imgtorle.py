@@ -48,12 +48,12 @@ def image_to_arm_asm(image_path, output_file):
         f.write(f"    EXPORT {var_name}\n\n")
 
         f.write(f"{var_name}\n")
-        f.write(f"    DCD {len(runLengthList)}\n")
-        f.write(f"    DCD {width}\n")
-        f.write(f"    DCD {height}\n")  # Image width and height
+        f.write(f"    DCW {len(runLengthList)}\n")
+        f.write(f"    DCW {width}\n")
+        f.write(f"    DCW {height}\n")  # Image width and height
 
         for i, colorRun in enumerate(runLengthList):
-            f.write(f"    DCW {colorRun.count}, #0x{colorRun.color:04X}\n")
+            f.write(f"    DCW {colorRun.count}, 0x{colorRun.color:04X}\n")
             
 
         f.write(f"\n    END\n")
@@ -68,5 +68,5 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 #  or just try both
 
 # ADD DIRECTORY TO IMAGE HERE
-image_to_arm_asm(image_path=os.path.join(script_dir, f'../assets/MazeNew.png'),
+image_to_arm_asm(image_path=os.path.join(script_dir, f'../assets/XO_LOGO.png'),
                  output_file=os.path.join(script_dir, "RLEOutput.s"))
