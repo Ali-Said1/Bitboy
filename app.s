@@ -1,6 +1,8 @@
 	AREA    DATA, DATA, READWRITE
     EXPORT sys_time
 	EXPORT ACTIVE_GAME
+	EXPORT JOYSTICK_X_VALUE
+	EXPORT JOYSTICK_Y_VALUE
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
 ACTIVE_GAME       DCB     0       ; 8-bit variable for active game (0 = Main Menu, 1 = Game 1, etc.)
 LAST_DRAW_TIME 	  DCW 	0
@@ -10,16 +12,22 @@ btn1_last_handled_time   DCD     0       ; 32-bit variable for last handled time
 btn2_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn3_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 btn4_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
+btn5_last_handled_time   DCD     0       ; 32-bit variable for last handled time (ms)
 ;####################################################END INTERRUPT VARAIBLES#######################################################
 ;####################################################Menu VARAIBLES#######################################################
 HOVERED_GAME DCD 0 ; Variable to store the currently hovered game
 HOVERED_GAME_X DCD 0 ; X coordinate of the hovered game border
 HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 ;###################################################END Menu VARAIBLES#######################################################
-;####################################################PONG VARAIBLES#######################################################
-
-;####################################################END PONG VARAIBLES#######################################################
-    ALIGN
+;####################################################JOYSTICK VARAIBLES#######################################################
+ACTIVE_COORDINATE   DCB     0
+JOYSTICK_X_VALUE    DCB     0       ; Raw ADC value for X-axis
+JOYSTICK_Y_VALUE    DCB     0       ; Raw ADC value for Y-axis
+JOYSTICK_SW_STATE   DCB     0       ; 0 = released, 1 = pressed
+JOYSTICK_SW_LAST_HANDLED_TIME DCD 0 ; For debouncing joystick switch
+JOYSTICK_NEUTRAL_LOW    DCW 1800    ; Lower threshold for neutral zone (approx 4095/2 - delta)
+JOYSTICK_NEUTRAL_HIGH   DCW 2200    ; Upper threshold for neutral zone (approx 4095/2 + delta)
+;####################################################END JOYSTICK VARAIBLES#######################################################    ALIGN
 	;--===============================================================--
 	;|--|  STM32F103C8T6  |--|  ARM Cortex-M3  |--|  ARM Assembly   |--|
     ;|--| =================Important Definitions:================== |--|
@@ -74,6 +82,8 @@ HOVERED_GAME_Y DCD 0 ; Y coordinate of the hovered game border
 	EXPORT EXTI1_IRQHandler
 	EXPORT EXTI2_IRQHandler
 	EXPORT EXTI3_IRQHandler
+    EXPORT EXTI9_5_IRQHandler
+    EXPORT ADC1_2_IRQHandler
 	EXPORT SysTick_Handler
     ;==============================PONG IMPORTS=================================
     IMPORT PONG_LOGO
@@ -176,6 +186,8 @@ __main FUNCTION
 	MOV R11, #0
     STRB R11, [R0]
 MAIN_LOOP
+    BL START_ADC1_CH8_CONVERSION
+    BL START_ADC1_CH9_CONVERSION
     LDR R0, =ACTIVE_GAME ; Load the address of ACTIVE_GAME
     LDRB R11, [R0]
     CMP		 R11, #0 ; Check if R11 is 0 (Main Menu)
@@ -259,22 +271,29 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     ldr r1, =0x00 ; Set current value to 0
     str r1, [r0]  ; Write to SysTick_CURRENT_VALUE
 	;##################################End Systick Enable#######################################
-    ;#################################Enable GPIOA, GPIOB & AFIO Clocks#######################################
+    ;#################################Enable ADC1, GPIOA, GPIOB & AFIO Clocks#######################################
     ldr r0, =RCC_BASE
     ldr r1, =RCC_APB2ENR_OFFSET
     add r0, r0, r1
     ldr r1, [r0]  ; Read RCC_APB2ENR 
-    orr r1, r1, #0x0D  ; Enable GPIOA, GPIOB & AFIO clock
+    LDR R2, =0x20D
+    orr r1, r1, R2  ; Enable ADC1, GPIOA, GPIOB & AFIO clock
     str r1, [r0]  ; Write back to RCC_APB2ENR
     ;##################################End Enable GPIOA, GPIOB & AFIO Clocks#######################################
     ;#################################Configure GPIOA and GPIOB#######################################
     ; Configure GPIOA (PA0 PA1 PA2 PA3 PA5) as input, for
-    ; Lower 8 pins are defined here and will be used as CTRL pins for the LCD
     ldr r0, =GPIOA_BASE
     ldr r1, =GPIOx_CRL_OFFSET
     add r0, r0, r1
-    LDR r1, =0x111111  ; Set mode to input mode / pull-up - pull-down for PA0 - PA3, PA5
+    LDR r1, =0x888888  ; Set mode to input mode / pull-up - pull-down for PA0 - PA3, PA5
     str r1, [r0]  ; Write to GPIOA_CRL
+    ; Set GPIOB B0, B1 to be floating input
+    ldr r0, =GPIOB_BASE
+    ldr r1, =GPIOx_CRL_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0]
+    AND r1, r1, #0x00
+    str r1, [r0]
     ; Define (PA8 - PA12) as output for control port
     ldr r0, =GPIOA_BASE
     ldr r1, =GPIOx_CRH_OFFSET
@@ -294,6 +313,91 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     MOV r1, #0x33333333  ; Set mode to output 50MHZ, push-pull for PB8-PB15
     str r1, [r0]  ; Write to GPIOB_CRH
     ;##################################End Configure GPIOA and GPIOB#######################################
+    ;##################################Start ADC1 config############################################
+    ; SMPR2: Configure sample time for channel 0 (Joystick X on PB0) and 1 (Joystick Y on PB1)
+    ; Let's use 71.5 cycles: 0b101
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_SMPR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_SMPR2
+    ldr r2, [r1]
+    ldr r3, =0x36000000
+    orr r2, r3
+    str r2, [r1]
+    ; SQR1 (1 conversion in sequence)
+    ldr r1, =ADC1_SQR1_OFFSET
+    add r1, r0, r1
+    ldr r2, [r1]
+    bic r2, r2, #0x00F00000 ; Clear L bits (bits 23-20 for number of conversions)
+                            ; We'll do one channel at a time.
+    ;orr r2, r2, #0x00100000
+    str r2, [r1]
+    
+    ldr r0, =ADC1_BASE
+    ldr   r1, =ADC1_SQR3_OFFSET
+    add   r1, r0, r1            ; r1 → &ADC1->SQR3
+    ldr   r2, [r1]
+    bic   r2, r2, #0x1F         ; clear SQ1 (bits 4:0)
+    ;ORR R2, R2, #9
+    ;LSL R2, R2, #8
+    orr   r2, r2, #8     ; SQ1 = 8 (channel 8 = PB0)
+    str   r2, [r1]
+    ; Turn ADC On (ADON=1 in CR2) - first time to wake up, second time after config
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_ADON
+    str r2, [r1]
+
+    ; Wait for ADC to stabilize (a short delay)
+    mov r5, #10 ; Small delay
+    bl DELAY_MS ; Use your existing delay function
+
+    ; ADC Calibration
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_CAL  ; Start calibration
+    str r2, [r1]
+
+ADC_CAL_WAIT
+    ldr r2, [r1]
+    tst r2, #ADC_CR2_CAL      ; Check if CAL bit is still set
+    bne ADC_CAL_WAIT          ; Loop if still calibrating
+    
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_ADON
+    str r2, [r1]
+    ; ADC Configuration:
+    ; CR1: SCAN mode off, interrupts off for now
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR1_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR1
+    mov r2, #(0 << 8)   ; Default: SCAN=0, AWDSGL=0etc.
+	;orr r2, r2, #(1 << 5)
+    str r2, [r1]
+
+    ; CR2: ADON=1 (already on), CONT=0 (single conversion), ALIGN=0 (right), SWSTART for trigger
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    ldr r2, [r1]
+    bic r2, r2, #ADC_CR2_CONT    ; Single conversion mode
+    bic r2, r2, #ADC_CR2_ALIGN   ; Right alignment
+    ; Set external trigger to SWSTART (111 for EXTSEL bits 20-17 in CR2)
+    orr r2, r2, #0x0000000 ; 0b111 << 17 = 0x00E0000
+    bic r2, r2, #(1 << 20)     ; EXTTRIG = 1 (Enable external trigger for regular channels)
+                               ; Actually, for SWSTART, EXTTRIG might not be needed.
+                               ; But let's ensure SWSTART is the source.
+                               ; Datasheet says for SWSTART, EXTTRIG should be set.
+    orr r2, r2, #(1 << 1) ; Cont
+    str r2, [r1]
+
+    ;##################################END ADC1 config############################################
     ;#################################Configure NVIC ########################################
     ldr r0, =NVIC_BASE  ; Load NVIC base address
     ldr r1, =NVIC_AIRCR_OFFSET  ; Load NVIC_AIRCR offset
@@ -307,30 +411,39 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     ldr r0, =AFIO_BASE
     ldr r1, =AFIO_EXTICR1_OFFSET
     add r0, r0, r1
-    ldr r1, [r0]  ; Set EXTI0 to EXTI3 to GPIOB
+    ldr r1, [r0]  ; Set EXTI0 to EXTI3 to GPIOA
 	mov r2, #0xFFFF
     bic r1, r1, r2 ; Clear Lower 16 bits
+    orr r1, r1, #(1 << 5)
     str r1, [r0]  ; Write to AFIO_EXTICR1
+    ldr r0, =AFIO_BASE
+    ldr r1, =AFIO_EXTICR2_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0]  ; Set EXTI0 to EXTI3 to GPIOA
+	mov r2, #0xFFFF
+    bic r1, r1, r2 ; Clear Lower 16 bits
+    str r1, [r0]  ; Write to AFIO_EXTICR2
     ; Unmask EXTI0 to EXTI3 lines' interrupts
     ldr r0, =EXTI_BASE
     ldr r1, =EXTI_IMR_OFFSET
     add r0, r0, r1
     ldr r1, [r0]  ; Read EXTI_IMR
-    orr r1, r1, #0x0F ; Unmask EXTI0 to EXTI3
+    orr r1, r1, #0x2F ; Unmask EXTI0 to EXTI3
     str r1, [r0]  ; Write to EXTI_IMR
     ; Enable interrupt on falling edge for EXTI0 to EXTI3 lines, since arcade buttons' pins are pulled-up
     ldr r0, =EXTI_BASE
     ldr r1, =EXTI_FTSR_OFFSET
     add r0, r0, r1
     ldr r1, [r0] ; Read EXTI_FTSR
-    orr r1, r1, #0x0F ; Enable falling edge trigger for EXTI0 to EXTI3
+    orr r1, r1, #0x2F ; Enable falling edge trigger for EXTI0 to EXTI3
     str r1, [r0]  ; Write to EXTI_FTSR
     ; Enable NVIC interrupts for EXTI0 to EXTI3 lines
     ldr r0, =NVIC_BASE  ; Load NVIC base address
     ldr r1, =NVIC_ISER_ONE_OFFSET  ; Load NVIC_ISER0 offset
     add r0, r0, r1  ; Calculate NVIC_ISER0 address
     ldr r1, [r0]  ; Read NVIC_ISER0
-    orr r1, r1, #0x03C0  ; Enable interrupts for EXTI0 to EXTI3, ISER0 bits 6 - 9
+    ldr r2, =0x8003C0 ; 0x8403C0 for ADC INT
+    orr r1, r1, r2  ; Enable interrupts for EXTI0 to EXTI3, ISER0 bits 6 - 9
     str r1, [r0]  ; Write back to NVIC_ISER0
     ; Set the preemption priority and subpriority for EXTI0 to EXTI3 interrupts
     ldr r0, =NVIC_BASE  ; Load NVIC base address
@@ -348,12 +461,141 @@ WAIT_SWS ldr r1, [r0]    ; Read RCC_CFGR again
     MOV r2, #0x3020
     orr r1, r1, r2 ;Set the priority for EXTI3 & EXTI2 (Premrption to 0, sub priority of EXTI3 is 3 and EXTI2 is 2)
     str r1, [r0]  ;Write back to NVIC_IPR3
+    ldr r0, =NVIC_BASE
+    ldr r1, =NVIC_IPR_SIX_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0]
+    MOV r2, #0x00
+    ROR r2, r2, #8
+    ORR r1, r1, r2
+    str r1, [r0]
     ;#################################End Enable Interrupts for Arcade Buttons#######################################
 	pop {r0-r12, lr}
 	bx lr
 	LTORG
 	ENDFUNC
 	
+
+;###########################################ADC Functions################################################
+START_ADC1_CH8_CONVERSION FUNCTION
+    PUSH {R0-R3,LR}
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SQR3_OFFSET
+    ADD R0, R0, R1          ; Address of ADC_SQR3
+    MOV R1, #8              ; R3 = channel number
+    STR R1, [R0]            ; Set first sequence conversion to channel R0
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+    ; 2. Start ADC conversion (Set SWSTART bit in ADC_CR2)
+WAIT_CH8_EOC_LOOP
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    TST R1, #2 ; Check EOC
+    BEQ WAIT_CH8_EOC_LOOP
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_DR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LSR R1, R1, #2
+    MOV R2, #10
+    UDIV R1, R2
+    CMP R1, #100
+    BLE JS_SKIP_CAP_X_AT_100
+    MOV R1, #100
+JS_SKIP_CAP_X_AT_100
+    CMP R1, #45
+    BGE JS_X_COMPARE_55
+    SUB R1, R1, #50
+    B JS_X_UPDATE_VAL
+JS_X_COMPARE_55
+    CMP R1, #55
+    MOVLE R1, #0
+    SUBGT R1, R1, #50
+JS_X_UPDATE_VAL
+    LDR R0, =JOYSTICK_X_VALUE
+    STRB R1, [R0]
+    
+    POP {R0-R3,LR}
+    BX LR
+    ENDFUNC
+START_ADC1_CH9_CONVERSION FUNCTION
+    PUSH {R0-R3,LR}
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SQR3_OFFSET
+    ADD R0, R0, R1          ; Address of ADC_SQR3
+    MOV R1, #9              ; R3 = channel number
+    STR R1, [R0]            ; Set first sequence conversion to channel R0
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+    ; 2. Start ADC conversion (Set SWSTART bit in ADC_CR2)
+WAIT_CH9_EOC_LOOP
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    TST R1, #2 ; Check EOC
+    BEQ WAIT_CH9_EOC_LOOP
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_DR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LSR R1, R1, #2
+    MOV R2, #10
+    UDIV R1, R2
+    CMP R1, #100
+    BLE JS_SKIP_CAP_Y_AT_100
+    MOV R1, #100
+JS_SKIP_CAP_Y_AT_100
+    CMP R1, #45
+    BGE JS_Y_COMPARE_55
+    SUB R1, R1, #50
+    B JS_Y_UPDATE_VAL
+JS_Y_COMPARE_55
+    CMP R1, #55
+    MOVLE R1, #0
+    SUBGT R1, R1, #50
+JS_Y_UPDATE_VAL
+    LDR R0, =JOYSTICK_Y_VALUE
+    STRB R1, [R0]
+    
+    POP {R0-R3,LR}
+    BX LR
+    ENDFUNC
+
 ; #######################################################START MISC FUNCTIONS#######################################################
 DELAY_MS PROC
 	PUSH {R0-R3, LR}          ; Save registers and link register
@@ -2414,7 +2656,7 @@ XO_INC_END
 XO_DEC_HOVER
     PUSH {R0-R12, LR}
     LDR R0, =ACTIVE_CELL
-    LDR R0, [R0]
+    LDRB R0, [R0]
     LDR R1, =GameBoard
 XO_DEC_LOOP
     CMP R0, #0
@@ -2815,7 +3057,8 @@ EXTI0_IRQHandler PROC ; Right Button Handler
     ldr r3, =btn1_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 250 ms
+    ldr r1, =250
+    cmp r0, r1                  ; Compare difference with 250 ms
     BLS.W skip_toggle              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn1_last_handled_time
 	str r2, [r4]
@@ -2927,6 +3170,10 @@ GAME3_INT0_HANDLER
 ;##########END Game3 Handler############
 ;##########Start Game4 Handler############
 GAME4_INT0_HANDLER
+    LDR R3, =GAME_STATUS
+    LDRB R3, [R3]
+    CMP R3, #0
+    BNE skip_toggle
     LDR R3, =ACTIVE_CELL
     LDRB R3, [R3]
     LDR R7, =XO_BCK_COLOR
@@ -2958,7 +3205,8 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     ldr r3, =btn2_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 250 ms
+    ldr r1, =250
+    cmp r0, r1                  ; Compare difference with 250 ms
     BLS.W skip_toggle1              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn2_last_handled_time
 	str r2, [r4]
@@ -3071,6 +3319,10 @@ GAME3_INT1_HANDLER
 ;##########END Game3 Handler############
 ;##########Start Game4 Handler############
 GAME4_INT1_HANDLER
+    LDR R3, =GAME_STATUS
+    LDRB R3, [R3]
+    CMP R3, #0
+    BNE skip_toggle1
     LDR R3, =ACTIVE_CELL
     LDRB R3, [R3]
     LDR R7, =XO_BCK_COLOR
@@ -3101,7 +3353,8 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     ldr r3, =btn3_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 250 ms
+    ldr r1, =250
+    cmp r0, r1                  ; Compare difference with 250 ms
     BLS.W skip_toggle2             ; If <= 50 ms, skip the toggle
 	ldr r4, =btn3_last_handled_time
 	str r2, [r4]
@@ -3317,7 +3570,8 @@ EXTI3_IRQHandler PROC ; Down button handler
     ldr r3, =btn4_last_handled_time   ; Address of last_handled_time
     ldr r3, [r3]                 ; r3 = last_handled_time
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
-    cmp r0, #250                  ; Compare difference with 250 ms
+    ldr r1, =250
+    cmp r0, r1                  ; Compare difference with 250 ms
     bls skip_toggle3              ; If <= 50 ms, skip the toggle
 	ldr r4, =btn4_last_handled_time
 	str r2, [r4]
@@ -3365,6 +3619,41 @@ skip_toggle3
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
 	ENDP
+
+EXTI9_5_IRQHandler PROC ; Escape button handler
+    ldr r0, =EXTI_BASE      ; EXTI base address
+    ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
+    add r0, r0, r1            ; Calculate EXTI_PR address
+    mov r1, #0x20             ; Bit mask for EXTI3
+    str r1, [r0]              ; Clear the pending bit for EXTI0
+	; Debouncing logic
+    ldr r2, =sys_time            ; Address of sys_time
+    ldr r2, [r2]                 ; r2 = current sys_time
+    ldr r3, =btn5_last_handled_time   ; Address of last_handled_time
+    ldr r3, [r3]                 ; r3 = last_handled_time
+    subs r0, r2, r3              ; r0 = sys_time - last_handled_time
+    ldr r1, =250
+    cmp r0, r1                  ; Compare difference with 250 ms
+    bls skip_toggle95              ; If <= 250 ms, skip the toggle
+	ldr r4, =btn5_last_handled_time
+	str r2, [r4]
+	; ISR logic starts here:
+    ; LDR R11, =ACTIVE_GAME ; Load the active game variable address
+	; LDRB R11, [R11]
+    LDR R11, =ACTIVE_GAME
+    MOV R1, #0
+    STRB R1, [R11]
+    BL RESET_MENU
+    MOV R0, #0
+    BL FILL_SCREEN
+    BL DRAW_MENU
+	B skip_toggle95
+skip_toggle95
+    LDR   R0, =MAIN_LOOP + 1
+    STR   R0, [SP, #24] ; Store the address of MAIN_LOOP in the to-be-popped pc value
+    LDR   LR, =0xFFFFFFF9
+    BX LR
+    ENDP
 SysTick_Handler PROC
     PUSH    {R0, R1, LR}            ; Save registers
 	LDR     R0, =sys_time    ; Load address of my_variable
@@ -3425,6 +3714,42 @@ SYSTICK_END
 	bx lr
 	ENDP
     LTORG
+
+; ADC INTERUPT (PLEASE WORK PLEASSSEEE)
+ADC1_2_IRQHandler PROC
+    PUSH {R0-R12, LR}
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    MOV R1, #2
+    STR R1, [R0] ; Clear EOC
+    
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_DR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LDR R0, =JOYSTICK_X_VALUE
+    STRH R1, [R0]
+EOC_WAIT_LOOP
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    TST R1, #2
+    BEQ EOC_WAIT_LOOP
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    MOV R1, #2
+    STR R1, [R0] ; Clear EOC
+    LDR R0, =JOYSTICK_Y_VALUE
+    STRH R1, [R0]
+
+ADC1_2END
+    POP {R0-R12, LR}
+    BX LR
+    ENDP
 ;================================================END INTERRUPT HANDLER=================================================
 	END
 ;========================================================END========================================================

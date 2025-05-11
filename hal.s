@@ -80,6 +80,26 @@ ADC1_JDR2_OFFSET EQU 0x40
 ADC1_JDR3_OFFSET EQU 0x44
 ADC1_JDR4_OFFSET EQU 0x48
 ADC1_DR_OFFSET EQU 0x4C
+
+; ADC_CR1 bits
+ADC_CR1_SCAN         EQU     (1 << 8) ; Scan mode
+ADC_CR1_EOCIE        EQU     (1 << 5) ; Interrupt enable for EOC
+
+; ADC_CR2 bits
+ADC_CR2_ADON         EQU     (1 << 0)  ; A/D Converter ON / OFF
+ADC_CR2_CONT         EQU     (1 << 1)  ; Continuous conversion
+ADC_CR2_CAL          EQU     (1 << 2)  ; A/D Calibration
+ADC_CR2_RSTCAL       EQU     (1 << 3)  ; Reset calibration
+ADC_CR2_ALIGN        EQU     (1 << 11) ; Data alignment (0: right, 1: left)
+ADC_CR2_SWSTART      EQU     (1 << 22) ; Start conversion of regular channels
+
+; ADC_SR bits
+ADC_SR_EOC           EQU     (1 << 1)  ; End of conversion
+
+; ADC Channels (for PA6, PA7)
+ADC_CHANNEL_8        EQU     8
+ADC_CHANNEL_9        EQU     9
+
 ;RTC
 RTC_BASE EQU 0x40002800
 RTC_CRH_OFFSET EQU 0x00
