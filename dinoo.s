@@ -173,7 +173,7 @@ DINO_LOOP FUNCTION
     
     BL apply_vel_y
 	BL UPDATE_VELOCITY
-    ;BL check_for_despawn
+    
     
     B game_loop
     POP {R0-R12, LR}
@@ -235,10 +235,10 @@ return_input
 UPDATE_VELOCITY FUNCTION
     PUSH {R0-R12 , LR}
     LDR R0, =LAST_SYS_TIME_2
-    LDR R0, [R0]            ; Load the value of sys_time
+    LDR R0, [R0]            ; Load the value of LAST_SYS_TIME_2
     LDR R1, =sys_time
     LDR R1, [R1]            ; Load the value of sys_time
-    SUB R1, R1, R0          ;R1 = sys_time - LAST_SYS_TIME_1
+    SUB R1, R1, R0          ;R1 = sys_time - LAST_SYS_TIME_2
 
 
     LDR R2,=ACC
@@ -254,7 +254,7 @@ UPDATE_VELOCITY FUNCTION
     CMP R1, R3
     BLT end_update_velocity
     LDR R0, =DINO_VELOCITY
-    LDRH R4, [R0]            ; Load the value of dino_y
+    LDRH R4, [R0]            ; Load the value of DINO_VELOCITY
     LDR R2,=ACC
     LDRB R2, [R2]            ; Load the value of acc
     SXTB R2, R2
@@ -262,20 +262,20 @@ UPDATE_VELOCITY FUNCTION
     BEQ ACCNEG             ;if ACC is negative
     ADD R4, R4, #1
     LDR R0, =DINO_VELOCITY
-    STRH R4, [R0]           ; Update dino_y
+    STRH R4, [R0]           ; Update DINO_VELOCITY
 	B update_last_sys
 ACCNEG
     MVN R2,R2
     ADD R2, R2, #1
     SUB R4, #1
     LDR R0, =DINO_VELOCITY
-    STRH R4, [R0]           ; Update dino_y
+    STRH R4, [R0]           ; Update DINO_VELOCITY
 
 update_last_sys
 	LDR R0,=LAST_SYS_TIME_2
     LDR R2,=sys_time
     LDRH R2,[R2]
-    STRH R2,[R0]            ; Update LAST_SYS_TIME_1
+    STRH R2,[R0]            ; Update LAST_SYS_TIME_2
 
 end_update_velocity
 
@@ -359,27 +359,27 @@ check_for_despawn   FUNCTION
 check_ob2_despawn
 
     LDR R0, =OB2_ACTIVE
-    LDRB R1, [R0]           ; Load OB1_ACTIVE
-    CMP R1, #1              ; Is OB1 active?
-    BNE check_ob3_despawn   ; If not, skip to OB2
+    LDRB R1, [R0]           ; Load OB2_ACTIVE
+    CMP R1, #1              ; Is OB2 active?
+    BNE check_ob3_despawn   ; If not, skip to OB3
     LDR R2, =OB2_X
-    LDRH R3, [R2]           ; Load OB1_X
-    CMP R3, #0              ; Is OB1_X < 0?
-    BGT check_ob3_despawn   ; If not, skip to OB2
+    LDRH R3, [R2]           ; Load OB2_X
+    CMP R3, #0              ; Is OB2_X < 0?
+    BGT check_ob3_despawn   ; If not, skip to OB3
     MOV R1, #0
-    STRB R1, [R0]           ; Deactivate OB1 (OB1_ACTIVE = 0)
+    STRB R1, [R0]           ; Deactivate OB2 (OB2_ACTIVE = 0)
 
 check_ob3_despawn
     LDR R0, =OB3_ACTIVE
-    LDRB R1, [R0]           ; Load OB1_ACTIVE
-    CMP R1, #1              ; Is OB1 active?
-    BNE end_despawn   ; If not, skip to OB2
+    LDRB R1, [R0]           ; Load OB3_ACTIVE
+    CMP R1, #1              ; Is OB3 active?
+    BNE end_despawn   ; If not, end despawn
     LDR R2, =OB3_X
-    LDRH R3, [R2]           ; Load OB1_X
-    CMP R3, #0              ; Is OB1_X < 0?
-    BGT end_despawn   ; If not, skip to OB2
+    LDRH R3, [R2]           ; Load OB3_X
+    CMP R3, #0              ; Is OB3_X < 0?
+    BGT end_despawn   ; If not, end despawn
     MOV R1, #0
-    STRB R1, [R0]           ; Deactivate OB1 (OB1_ACTIVE = 0)
+    STRB R1, [R0]           ; Deactivate OB3 (OB3_ACTIVE = 0)
 
 end_despawn
     POP {R0-R12, LR}
@@ -400,28 +400,28 @@ check_for_objects   FUNCTION
     BL get_random
     MOV R9, #5000
     ADD R9, R0
-    CMP R11, R9                      ;if sys_time-LAST_SPAWN_TIME
+    CMP R11, R9                      
     BLT end_check_for_objects
 
     
     LDR R1, =OB1_ACTIVE
     LDRB R1, [R1]
     CMP R1, #0
-    BNE check_two  ;if ob1 isnt active spawn one 
+    BNE check_two 
     BL spawn_object1  ;if ob1 isnt active spawn one 
     B end_check_for_objects
 check_two
     LDR R1, =OB2_ACTIVE
     LDRB R1, [R1]
     CMP R1, #0
-    BNE check_three  ;if ob1 isnt active spawn one 
-    BL spawn_object2  ;if ob1 isnt active spawn one 
+    BNE check_three  
+    BL spawn_object2  ;if ob2 isnt active spawn one 
     B end_check_for_objects
 check_three
     LDR R1, =OB3_ACTIVE
     LDRB R1, [R1]
     CMP R1, #0
-    BLEQ spawn_object3  ;if ob1 isnt active spawn one 
+    BLEQ spawn_object3  ;if ob3 isnt active spawn one 
 
 end_check_for_objects
     POP {R0-R12 , LR}
@@ -432,7 +432,7 @@ end_check_for_objects
 spawn_object1 FUNCTION
     PUSH {R0-R12 , LR}
     MOV R0, #1              ;to indicate the object number
-    MOV R7, #1              ;object became active
+    MOV R7, #1              
     LDR R1, =OB1_ACTIVE
     STRB R7, [R1]            ;OB1_active =1
 
@@ -444,9 +444,9 @@ spawn_object1 FUNCTION
     BLEQ.W spawn_cactus  ;if true spawn a cactus
     B end_spawn_object1
 
-spawn_bird1    ;if false spawn a bird
+spawn_bird1    
     
-    BL spawn_bird    ;if false spawn a bird
+    BL spawn_bird    
     
 end_spawn_object1
     POP {R0-R12 , LR}
@@ -458,7 +458,7 @@ spawn_object2   FUNCTION
     MOV R0, #2              ;to indicate the object number
     MOV R7, #1              ;object became active
     LDR R1, =OB2_ACTIVE
-    STRB R7, [R1]            ;OB1_active =1
+    STRB R7, [R1]            ;OB2_active =1
 
     LDR R4, =OB2_TYPE
     BL DINO_DEFINE_OB_TYPE     ;get random object type
@@ -468,13 +468,13 @@ spawn_object2   FUNCTION
     BLEQ.W spawn_cactus  ;if true spawn a cactus
     B end_spawn_object1
 
-spawn_bird2    ;if false spawn a bird
+spawn_bird2    
     
-    BL spawn_bird    ;if false spawn a bird
+    BL spawn_bird  
     
-end_spawn_object2        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+end_spawn_object2        
     POP {R0-R12 , LR}
-    BX LR ; Simply return to check_for_objects after spawning one1
+    BX LR 
     ENDFUNC
 
 spawn_object3   FUNCTION
@@ -482,7 +482,7 @@ spawn_object3   FUNCTION
     MOV R0, #3              ;to indicate the object number
     MOV R7, #1              ;object became active
     LDR R1, =OB3_ACTIVE
-    STRB R7, [R1]            ;OB1_active =1
+    STRB R7, [R1]            ;OB3_active =1
 
     LDR R4, =OB3_TYPE
     BL DINO_DEFINE_OB_TYPE     ;get random object type
@@ -492,11 +492,11 @@ spawn_object3   FUNCTION
     BLEQ.W spawn_cactus  ;if true spawn a cactus
     B end_spawn_object3
 
-spawn_bird3    ;if false spawn a bird
+spawn_bird3    
     
-    BL spawn_bird    ;if false spawn a bird
+    BL spawn_bird    
     
-end_spawn_object3        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+end_spawn_object3       
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one
     ENDFUNC
@@ -623,7 +623,7 @@ end_spawn_bird
 
 
     POP {R0-R12 , LR}
-    BX LR    ;to check again for the other objects
+    BX LR   
     ENDFUNC
 
 
@@ -713,7 +713,7 @@ end_spawn_cactus
 
 
     POP {R0-R12 , LR}
-    BX LR          ;to check again for the other objects
+    BX LR       
     ENDFUNC
 
 
@@ -724,7 +724,7 @@ move_object FUNCTION
     LDR R1, [R0]
     LDR R0, =sys_time
     LDR R2, [R0]
-    SUB R4, R2, R1                ; R4 = sys_time - LAST_SPAWN_TIME
+    SUB R4, R2, R1                ; R4 = sys_time - LAST_SYS_TIME_MOVE
 
     LDR R2,=OBSTACLE_VELOCITY
     MOV R3, #1000
