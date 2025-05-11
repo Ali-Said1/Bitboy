@@ -9,15 +9,16 @@ DINO_CAC_H          EQU      60
 DINO_BIRD_W         EQU      40
 DINO_BIRD_H         EQU      20
 DINO_GROUND_Y       EQU      280
-DINO_START_X        EQU      20
-DINO_START_Y        EQU      180
-DINO_NORMAL_DINO_H  EQU      100
+DINO_START_X        EQU      60
+DINO_START_Y        EQU      200
+DINO_NORMAL_DINO_H  EQU      80
 DINO_CROUCH_DINO_H  EQU      50
-DINO_OBSTACLE_VELOCITY EQU   100
+DINO_OBSTACLE_VELOCITY EQU   1500
     AREA DINOVARS, DATA, READWRITE
     
     ;##########################DINO
     EXPORT DINOSTATE
+    EXPORT DINOSTATE_INPUT
     EXPORT DINO_X
     EXPORT DINO_Y
     EXPORT DINO_W
@@ -43,13 +44,17 @@ DINO_OBSTACLE_VELOCITY EQU   100
     EXPORT OB3_W
     EXPORT OB3_H
 	EXPORT JUMP_CONDITION
+    EXPORT DINO_HEAD_ERASED
+    EXPORT GAME_OVER_STATE
 DINOSTATE  DCB 0 ;0 walking, 1 jumping, ,2 ducking,3 dead
+DINOSTATE_INPUT DCB 0
+DINO_HEAD_ERASED DCB 0
 DINO_X  DCW 20
 DINO_Y  DCW 180
-DINO_W DCW 40
-DINO_H DCW 100
+DINO_W DCW 60
+DINO_H DCW 80
 
-LAST_SPAWN_TIME  DCW 0
+LAST_SPAWN_TIME  DCD 0
 JUMP_CONDITION DCB 0 ;0 up, 1 down 2 delay
 
 DELAY DCW 20
@@ -118,11 +123,22 @@ DINO_RESET FUNCTION
     ;intialize spawntime
     LDR     R0,=LAST_SPAWN_TIME
     MOV     R1,#0
-    STRH    R1,[R0]
+    STR    R1,[R0]
 
+    LDR R0, =LAST_SYS_TIME_MOVE
+    MOV R1, #0
+    STR R1, [R0]
+
+    LDR R0, =LAST_SYS_TIME_1
+    MOV R1, #0
+    STR R1, [R0]
+
+    LDR R0, =LAST_SYS_TIME_2
+    MOV R1, #0
+    STR R1, [R0]
     ;intialize dino object width
     LDR     R0,=DINO_W
-    MOV     R1,#40 
+    MOV     R1,#60
     STRH    R1,[R0]
     ;intialize dino object height
     LDR     R0,=DINO_H
@@ -133,6 +149,24 @@ DINO_RESET FUNCTION
     MOV     R1,#20
     STRH    R1,[R0]
 
+    ; Initialize OB1_ACTIVE to 0
+    LDR     R0, =OB1_ACTIVE
+    MOV     R1, #0
+    STRB    R1, [R0]
+
+    ; Initialize OB2_ACTIVE to 0
+    LDR     R0, =OB2_ACTIVE
+    MOV     R1, #0
+    STRB    R1, [R0]
+
+    ; Initialize OB3_ACTIVE to 0
+    LDR     R0, =OB3_ACTIVE
+    MOV     R1, #0
+    STRB    R1, [R0]
+
+    LDR R0, =DINOSTATE_INPUT
+    MOV R1, #0
+    STRB R1, [R0]
     ;intialize jump condition
     LDR     R0,=JUMP_CONDITION
     MOV     R1,#0
@@ -180,6 +214,8 @@ GAME_OVER FUNCTION
 
 PROCESS_INPUT FUNCTION
     PUSH {R0-R12 , LR}
+    LDR R12, =DINOSTATE_INPUT
+    LDRB R12, [R12]
     CMP R12, #0
     BEQ cond1
     CMP R12, #1
@@ -211,6 +247,9 @@ cond3
     B return_input
 
 return_input
+    LDR R12, =DINOSTATE_INPUT
+    MOV R0, #0
+    STRB R0, [R12]
     POP {R0-R12 , LR}
     BX LR
     ENDFUNC
@@ -288,10 +327,10 @@ DINO_JUMP FUNCTION
     STRH R2,[R0]
     ; Set initial velocity and upward acceleration
     LDR R0, =DINO_VELOCITY
-    MOV R1, #-50
+    MOV R1, #-80
     STRB R1, [R0]
     LDR R2, =ACC
-    MOV R1, #-15
+    MOV R1, #-40
     STRH R1, [R2]
 
 return_to_JUMP_DINO
@@ -383,7 +422,7 @@ check_for_objects   FUNCTION
     LDR R10, =sys_time  
     LDR R10, [R10]                  ;R10 = sys_time
     LDR R11, =LAST_SPAWN_TIME
-    LDRH R11, [R11]                  ;R11 = LAST_SPAWN_TIME
+    LDR R11, [R11]                  ;R11 = LAST_SPAWN_TIME
     SUB R11, R10 ,R11                ;R11 = sys_time - LAST_SPAWN_TIME
     MOV R3, #3000
     BL get_random
@@ -407,10 +446,10 @@ check_two
     BL spawn_object2  ;if ob1 isnt active spawn one 
     B end_check_for_objects
 check_three
-    LDR R1, =OB3_ACTIVE
-    LDRB R1, [R1]
-    CMP R1, #0
-    BLEQ spawn_object3  ;if ob1 isnt active spawn one 
+    ;LDR R1, =OB3_ACTIVE
+    ;LDRB R1, [R1]
+    ;CMP R1, #0
+    ;BLEQ spawn_object3  ;if ob1 isnt active spawn one 
 
 end_check_for_objects
     POP {R0-R12 , LR}
@@ -468,24 +507,24 @@ end_spawn_object2        ;no need for it since spawn_cactus/bird ends with BX ch
 
 spawn_object3   FUNCTION
     PUSH {R0-R12 , LR}
-    MOV R0, #3              ;to indicate the object number
-    MOV R7, #1              ;object became active
-    LDR R1, =OB3_ACTIVE
-    STRB R7, [R1]            ;OB1_active =1
+;     MOV R0, #3              ;to indicate the object number
+;     MOV R7, #1              ;object became active
+;     LDR R1, =OB3_ACTIVE
+;     STRB R7, [R1]            ;OB1_active =1
 
-    LDR R4, =OB3_TYPE
-    BL DINO_DEFINE_OB_TYPE     ;get random object type
-    LDRB R4, [R4]
-    CMP R4, #1 ;if its a cactus
-    BNE spawn_bird3 ;if false spawn a bird
-    BLEQ.W spawn_cactus  ;if true spawn a cactus
-    B end_spawn_object3
+;     LDR R4, =OB3_TYPE
+;     BL DINO_DEFINE_OB_TYPE     ;get random object type
+;     LDRB R4, [R4]
+;     CMP R4, #1 ;if its a cactus
+;     BNE spawn_bird3 ;if false spawn a bird
+;     BLEQ.W spawn_cactus  ;if true spawn a cactus
+;     B end_spawn_object3
 
-spawn_bird3    ;if false spawn a bird
+; spawn_bird3    ;if false spawn a bird
     
-    BL spawn_bird    ;if false spawn a bird
+;     BL spawn_bird    ;if false spawn a bird
     
-end_spawn_object3        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+; end_spawn_object3        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
     POP {R0-R12 , LR}
     BX LR ; Simply return to check_for_objects after spawning one
     ENDFUNC
@@ -522,13 +561,14 @@ spawn_bird   FUNCTION ;R0 has the object number
     CMP R0 , #1
     BNE not1  ;not obj1
     LDR R1 , =OB1_X
-    MOV R2 , #480
-    STRH R2 , [R1]  ;obj1_x =480  (the right of the screen)
+    MOV R2 , #479
+    STRH R2 , [R1]  ;obj1_x =479  (the right of the screen)
 RD_W
     LDR R3 , =OB1_Y
     MOV R4 , #DINO_GROUND_Y
     SUB R4 , R4 , #DINO_NORMAL_DINO_H
-    ADD R4 , R4,#10
+    ; ADD R4 , R4,#10
+    MOV R4, #110
     STRH R4 , [R3]      ;obj1_y = DINO_GROUND_Y-DINO_H (flying at height of the dino)
     
 
@@ -552,12 +592,13 @@ not1
     CMP R0 , #2
     BNE not2 ;not obj2
     LDR R1 , =OB2_X
-    MOV R2 , #480
-    STRH R2 , [R1]  ;obj2_x =480  (the right of the screen)
+    MOV R2 , #479
+    STRH R2 , [R1]  ;obj2_x =479  (the right of the screen)
 
     LDR R3 , =OB2_Y
     MOV R4 , #DINO_GROUND_Y
     SUB R4 , R4 , #DINO_NORMAL_DINO_H  
+    MOV R4, #120
     STRH R4 , [R3]      ;obj2_y = DINO_GROUND_Y-DINO_H (flying at height of the dino)
 
 
@@ -580,8 +621,8 @@ not1
 not2
 
     LDR R1, =OB3_X
-    MOV R2, #480
-    STRH R2, [R1]  ;obj3_x =480  (the right of the screen)
+    MOV R2, #479
+    STRH R2, [R1]  ;obj3_x =479  (the right of the screen)
 
     LDR R3, =OB3_Y
     MOV R4, #DINO_GROUND_Y
@@ -607,7 +648,7 @@ end_spawn_bird
     LDR R1 , =sys_time
     LDR R1 , [R1]
     LDR R2, =LAST_SPAWN_TIME
-    STRH R1, [R2]   ;update LAST_SPAWN_TIME
+    STR R1, [R2]   ;update LAST_SPAWN_TIME
 
 
 
@@ -622,8 +663,8 @@ spawn_cactus   FUNCTION;R0 has the object number
     CMP R0, #1
     BNE not1_cactus  ;not obj1
     LDR R1, =OB1_X
-    MOV R2, #480
-    STRH R2, [R1]  ;obj1_x =480  (the right of the screen)
+    MOV R2, #479
+    STRH R2, [R1]  ;obj1_x =479  (the right of the screen)
 
     LDR R3, =OB1_Y
     MOV R4, #DINO_GROUND_Y
@@ -646,8 +687,8 @@ not1_cactus
     CMP R0 , #2
     BNE not2_cactus ;not obj2
     LDR R1, =OB2_X
-    MOV R2, #480
-    STRH R2, [R1]  ;obj2_x =480  (the right of the screen)
+    MOV R2, #479
+    STRH R2, [R1]  ;obj2_x =479  (the right of the screen)
 
     LDR R3, =OB2_Y
     MOV R4, #DINO_GROUND_Y
@@ -669,8 +710,8 @@ not1_cactus
 
 not2_cactus
     LDR R1, =OB3_X
-    MOV R2, #480
-    STRH R2, [R1]  ;obj3_x =480  (the right of the screen)
+    MOV R2, #479
+    STRH R2, [R1]  ;obj3_x =479  (the right of the screen)
 
     LDR R3, =OB3_Y
     MOV R4, #DINO_GROUND_Y
@@ -698,7 +739,7 @@ end_spawn_cactus
     LDR R1 , =sys_time
     LDR R1 , [R1]
     LDR R2, =LAST_SPAWN_TIME
-    STRH R1, [R2]   ;update LAST_SPAWN_TIME
+    STR R1, [R2]   ;update LAST_SPAWN_TIME
 
 
     POP {R0-R12 , LR}
