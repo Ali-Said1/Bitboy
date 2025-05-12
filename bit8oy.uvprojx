@@ -464,6 +464,11 @@
               <FileType>2</FileType>
               <FilePath>.\DINO_LOGO.s</FilePath>
             </File>
+            <File>
+              <FileName>dino.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\dino.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

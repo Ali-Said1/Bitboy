@@ -188,6 +188,38 @@ JOYSTICK_NEUTRAL_HIGH   DCW 2200    ; Upper threshold for neutral zone (approx 4
     IMPORT AIM_SCORE_TIMER_COLOR
     IMPORT AIM_LOGO
     ;===============================END AIM Imports================================
+    ;===============================Start DINO Imports================================
+    IMPORT DINO_LOOP
+    IMPORT DINO_RESET
+    IMPORT DINO_CHARACTER
+    IMPORT DINOSTATE
+    IMPORT DINOSTATE_INPUT
+    IMPORT DINO_HEAD_ERASED
+    IMPORT DINO_X
+    IMPORT DINO_Y
+    IMPORT DINO_W
+    IMPORT DINO_H
+    IMPORT LAST_SPAWN_TIME
+	IMPORT DINO_VELOCITY
+    IMPORT OB1_TYPE
+    IMPORT OB1_ACTIVE
+    IMPORT OB1_X
+    IMPORT OB1_Y
+    IMPORT OB1_W
+    IMPORT OB1_H
+    IMPORT OB2_TYPE
+    IMPORT OB2_ACTIVE
+    IMPORT OB2_X
+    IMPORT OB2_Y
+    IMPORT OB2_W
+    IMPORT OB2_H
+    IMPORT OB3_TYPE
+    IMPORT OB3_ACTIVE
+	IMPORT OB3_X
+    IMPORT OB3_Y
+    IMPORT OB3_W
+    IMPORT OB3_H
+    ;===============================END DINO Imports================================
     IMPORT MEMORY_LOGO
     IMPORT DINO_LOGO
 	IMPORT MODULO
@@ -222,7 +254,11 @@ MAIN_LOOP
 
     CMP R11, #5
     BEQ DRAW_GAME5_LBL ; Aim Game
-	B END_MAINLOOP
+	
+    CMP R11, #6
+    BEQ DRAW_GAME6_LBL
+    
+    B END_MAINLOOP
 DRAW_GAME1_LBL
     BL DRAW_GAME1
     B END_MAINLOOP
@@ -232,6 +268,10 @@ DRAW_GAME3_LBL
     B END_MAINLOOP
 DRAW_GAME5_LBL
     BL DRAW_GAME5
+    B END_MAINLOOP
+
+DRAW_GAME6_LBL
+    BL DRAW_GAME6
     B END_MAINLOOP
 END_MAINLOOP
 	B MAIN_LOOP
@@ -1224,7 +1264,7 @@ RESET_MENU FUNCTION
     MOV R1, #1
     STR R1, [R0] ; Reset hovered game to 0
     LDR R0, =HOVERED_GAME_X
-    MOV R1, #37
+    MOV R1, #2
     STR R1, [R0] ; Reset X coordinate of hovered game
     LDR R0, =HOVERED_GAME_Y
     MOV R1, #52
@@ -1282,27 +1322,35 @@ DRAW_MENU FUNCTION
     BL DRAW_RECT
     ;Draw the game logo
     LDR R3, =PONG_LOGO
-    MOV R0, #45
+    MOV R0, #10
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =MAZE_LOGO
-    MOV R0, #190
+    MOV R0, #130
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =SNAKE_LOGO
-    MOV R0, #335
+    MOV R0, #250
     MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_RLE_IMAGE to draw the image
     LDR R3, =XO_LOGO
-    MOV R0, #45
-    MOV R1, #200
+    MOV R0, #370
+    MOV R1, #60
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =AIM_LOGO
-    MOV R0, #190
+    MOV R0, #10
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     LDR R3, =DINO_LOGO
-    MOV R0, #335
+    MOV R0, #130
+    MOV R1, #200
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =DINO_LOGO
+    MOV R0, #250
+    MOV R1, #200
+    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
+    LDR R3, =DINO_LOGO
+    MOV R0, #370
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     POP {R0-R4, LR}
@@ -3226,6 +3274,112 @@ DRAW_GAME5_TIM FUNCTION
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+
+DRAW_GAME6 FUNCTION
+    PUSH {R0-R12, LR}
+DELETE_OBS
+    MOV R0, #0
+    MOV R1, #100
+    MOV R3, #40
+    MOV R4, #180
+    MOV R5, #0x0
+    BL DRAW_RECT
+    LDR R6, =DINOSTATE
+    LDRB R6, [R6]
+    CMP R6, #1
+    BNE DINO_OB1_REMOVE
+    LDR R0, =DINO_X
+    LDRH R0, [R0]
+    LDR R1, =DINO_Y
+    LDRH R1, [R1]
+    LDR R3, =DINO_W
+    LDRH R3, [R3]
+    ; LDR R4, =DINO_H
+    ; LDRH R4, [R4]
+    MOV R4, #102
+    MOV R5, #0x0
+    BL DRAW_RECT
+DINO_OB1_REMOVE
+    LDR R6, =OB1_ACTIVE
+    LDRB R6, [R6]
+    CMP R6, #1
+    BNE DINO_OB2_REMOVE
+    LDR R0, =OB1_X
+    LDRH R0, [R0]
+    LDR R1, =OB1_Y
+    LDRH R1, [R1]
+    LDR R3, =OB1_W
+    LDRH R3, [R3]
+    ADD R0, R0, R3
+    SUB R0, R0, #1
+    MOV R3, #1
+    LDR R4, =OB1_H
+    LDRH R4, [R4]
+    MOV R5, #0x0
+    BL DRAW_RECT
+DINO_OB2_REMOVE
+    LDR R0, =OB2_X
+    LDRH R0, [R0]
+    LDR R1, =OB2_Y
+    LDRH R1, [R1]
+    LDR R3, =OB2_W
+    LDRH R3, [R3]
+    ADD R0, R0, R3
+    SUB R0, R0, #1
+    MOV R3, #1
+    LDR R4, =OB2_H
+    LDRH R4, [R4]
+    MOV R5, #0x0
+    LDR R6, =OB2_ACTIVE
+    LDRB R6, [R6]
+    CMP R6, #1
+    BNE DINO_GO_LOOP
+    BL DRAW_RECT
+
+DINO_GO_LOOP
+    BL DINO_LOOP
+    LDR R0, =DINOSTATE_INPUT
+    MOV R1, #0
+    STRB R1, [R0]
+    LDR R0, =DINO_X
+    LDRH R0, [R0]
+    LDR R1, =DINO_Y
+    LDRH R1, [R1]
+    LDR R3, =DINO_CHARACTER
+    BL DRAW_RLE_IMAGE
+
+    LDR R0, =OB1_X
+    LDRH R0, [R0]
+    LDR R1, =OB1_Y
+    LDRH R1, [R1]
+    MOV R3, #1
+    LDR R4, =OB1_H
+    LDRH R4, [R4]
+    MOV R5, #0x0E70
+    LDR R6, =OB1_ACTIVE
+    LDRB R6,[R6]
+    CMP R6, #1
+    BNE DINO_CHECK_OB2
+    BL DRAW_RECT
+
+DINO_CHECK_OB2
+    LDR R0, =OB2_X
+    LDRH R0, [R0]
+    LDR R1, =OB2_Y
+    LDRH R1, [R1]
+    MOV R3, #1
+    LDR R4, =OB2_H
+    LDRH R4, [R4]
+    MOV R5, #0x0E70
+    LDR R6, =OB2_ACTIVE
+    LDRB R6,[R6]
+    CMP R6, #1
+    BNE END_GAME5_FUN
+    BL DRAW_RECT
+END_GAME5_FUN
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -3427,21 +3581,21 @@ MENU_INT0_HANDLER
     LDR R2, [R1] ; Get hovered game index
     ADD R2, R2, #1 ; Move to the next game
     STR R2, [R1] ; Update hovered game index
-    CMP R2, #4 ; Check if it was the last game in the first row (3)
+    CMP R2, #5 ; Check if it was the last game in the first row (4)
     BEQ GO_SECOND_ROW
-    CMP R2, #7 ; Check if it was the last game in the second row (6)
+    CMP R2, #9 ; Check if it was the last game in the second row (8)
     BEQ GO_FIRST_ROW
     ; If both weren't the case stay in the same row
     LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
     LDR R2, [R1] ; Get X coordinate
-    ADD R2, R2, #145 ; Add 145 to X coordinate for next game
+    ADD R2, R2, #120 ; Add 120 to X coordinate for next game
     STR R2, [R1]
     BL DRAW_MENU ; Call DRAW_MENU to update the screen
     B skip_toggle
 
 GO_SECOND_ROW
     LDR R1, =HOVERED_GAME_X
-    MOV R2, #37 ; Reset X coordinate to first game
+    MOV R2, #2 ; Reset X coordinate to first game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #192 ; Go to the second row
@@ -3555,7 +3709,7 @@ EXTI1_IRQHandler PROC ; Left Button Handler
     CMP R11, #3
     BEQ GAME3_INT1_HANDLER
     CMP R11, #4
-    BEQ GAME4_INT1_HANDLER
+    BEQ.W GAME4_INT1_HANDLER
 	B skip_toggle1
     ; ##########Start Main Menu Handler##########
 MENU_INT1_HANDLER
@@ -3576,22 +3730,22 @@ MENU_INT1_HANDLER
     STR R2, [R1] ; Update hovered game index
     CMP R2, #0 ; Check if it was the first game in the first row (1)
     BEQ GO_END_SECOND_ROW
-    CMP R2, #3 ; Check if it was the first game in the second row (index 4)
+    CMP R2, #4 ; Check if it was the first game in the second row (index 5)
     BEQ GO_END_FIRST_ROW
     ; If both weren't the case stay in the same row
     LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
     LDR R2, [R1] ; Get X coordinate
-    SUBS R2, R2, #145 ; Subtract 145 to X coordinate for next game
+    SUBS R2, R2, #120 ; Subtract 120 to X coordinate for next game
     STR R2, [R1]
     BL DRAW_MENU ; Call DRAW_MENU to update the screen
     B skip_toggle1
 
 GO_END_SECOND_ROW
     LDR R1, =HOVERED_GAME
-    MOV R0, #6
+    MOV R0, #8
     STR R0, [R1] ; Set hovered game to the last game in the second row
     LDR R1, =HOVERED_GAME_X
-    MOV R2, #327 ; X Coordinate to last game
+    MOV R2, #362 ; X Coordinate to last game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #192 ; Go to the second row
@@ -3600,7 +3754,7 @@ GO_END_SECOND_ROW
     B skip_toggle1
 GO_END_FIRST_ROW
     LDR R1, = HOVERED_GAME_X
-    MOV R2, #327 ; X Coordinate to last game
+    MOV R2, #362 ; X Coordinate to last game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #52 ; Go to the second row
@@ -3703,9 +3857,11 @@ EXTI2_IRQHandler PROC ; Up Button Handler
     CMP R11, #3
     BEQ GAME3_INT2_HANDLER
     CMP R11, #4
-    BEQ GAME4_INT2_HANDLER
+    BEQ.W GAME4_INT2_HANDLER
     CMP R11, #5
     BEQ.W GAME5_INT2_HANDLER
+    CMP R11, #6
+    BEQ.W GAME6_INT2_HANDLER
 	B skip_toggle2
     ; ##########Start Main Menu Handler##########
 MENU_INT2_HANDLER
@@ -3726,6 +3882,8 @@ MENU_INT2_HANDLER
     BEQ RESET_XO_LBL
     CMP R11, #5
     BEQ RESET_AIM_LBL
+    CMP R11, #6
+    BEQ RESET_DINO_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
@@ -3761,6 +3919,9 @@ RESET_AIM_LBL
     LDR R1, [R1]
     STR R1, [R0]
     BL AIM_RESET
+    B skip_toggle2
+RESET_DINO_LBL
+    BL DINO_RESET
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
@@ -3895,6 +4056,7 @@ XO_DRAW_RESET
     BL DRAW_GAME4
     B skip_toggle2
 ; ##########END Game4 Handler##########
+; ##########Start Game5 Handler##########
 GAME5_INT2_HANDLER
     LDR R0, =AIM_GAME_STATE
     LDRB R0, [R0]
@@ -3913,9 +4075,15 @@ GAME5_INT2_HANDLER
     LDR R5, =AIM_CURSOR_COLOR
     BL DRAW_AIM_CURSOR
     B skip_toggle2
-; ##########Start Game5 Handler##########
-
 ; ##########END Game5 Handler##########
+; ##########Start Game6 Handler##########
+GAME6_INT2_HANDLER
+    LDR R0, =DINOSTATE_INPUT
+    MOV R1, #1
+    STRB R1, [R0]
+    B skip_toggle2
+; ##########END Game6 Handler##########
+
 
 skip_toggle2
     pop {r0-r5, lr}          ; Restore registers
