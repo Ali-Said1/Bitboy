@@ -134,6 +134,11 @@ Reset_Handler    PROC
      IMPORT  SystemInit
 	 IMPORT ACTIVE_GAME
 	 IMPORT sys_time
+	 IMPORT btn1_last_handled_time
+	 IMPORT btn2_last_handled_time
+	 IMPORT btn3_last_handled_time
+	 IMPORT btn4_last_handled_time
+	 IMPORT btn5_last_handled_time
 				 LDR     R0, =SystemInit
                  BLX     R0
 				 LDR 	 R0, =ACTIVE_GAME
@@ -142,6 +147,21 @@ Reset_Handler    PROC
 				 LDR 	 R0, =sys_time
 				 MOV 	 R1, #0
 				 STR	 R1, [R0]
+				 LDR 	 R0, =btn1_last_handled_time
+				 MOV 	 R1, #0
+				 STR 	 R1, [R0]
+				 LDR 	 R0, =btn2_last_handled_time
+				 MOV 	 R1, #0
+				 STR 	 R1, [R0]
+				 LDR 	 R0, =btn3_last_handled_time
+				 MOV 	 R1, #0
+				 STR 	 R1, [R0]
+				 LDR 	 R0, =btn4_last_handled_time
+				 MOV 	 R1, #0
+				 STR 	 R1, [R0]
+				 LDR 	 R0, =btn5_last_handled_time
+				 MOV 	 R1, #0
+				 STR 	 R1, [R0]
                  LDR     R0, =__main
                  BX      R0
                  ENDP

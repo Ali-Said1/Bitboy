@@ -469,6 +469,16 @@
               <FileType>2</FileType>
               <FilePath>.\dino.s</FilePath>
             </File>
+            <File>
+              <FileName>SnakeLadder.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\SnakeLadder.s</FilePath>
+            </File>
+            <File>
+              <FileName>SnakeLAdder_LOGO.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\SnakeLAdder_LOGO.s</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
