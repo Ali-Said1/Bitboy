@@ -1,0 +1,8 @@
+BS LOOP; Breakpoint at loop label
+G                                ; Run to the breakpoint
+
+; Now dump memory in each loop iteration
+LOOP:
+BS LOOP_LABEL                    ; Set breakpoint at loop label
+SAVE memdump.bin 0x20000000, 0x20000000 + 480*320*8  ; Save memory (16 bytes) at each loop iteration
+G                                 ; Continue running to next loop iteration

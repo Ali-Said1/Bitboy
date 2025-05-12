@@ -1,0 +1,523 @@
+AREA DINOVARS, DATA, READWRITE
+    ;##########################DINO
+    DINOSTATE  DCB 0
+    DINO_X  DCW DINO_START_X
+    DINO_Y  DCW DINO_START_Y
+    DINO_W DCW 20
+    DINO_H DCW 40
+    DINO_JUMPING_STATE DCB 0
+    DINO_LAST_JUMP_CHANGE DCW 0
+    LAST_SPAWN_TIME  DCD 0
+    ;##########################Obstacle 1
+    OB1_TYPE DCB 0
+    OB1_ACTIVE DCB 0   ;0->not active  1->active
+    OB1_X DCW 0
+    OB1_Y DCW 0
+    OB1_W DCW 0
+    OB1_H DCW 0
+
+    ;##########################Obstacle 2
+    OB2_TYPE DCB 0
+    OB2_ACTIVE DCB 0
+    OB2_X DCW 0
+    OB2_Y DCW 
+    OB2_W DCW 0
+    OB2_H DCW 0
+    ;##########################Obstacle 3
+    OB3_TYPE DCB 0
+    OB3_ACTIVE DCB 0
+    OB3_X DCW 0
+    OB3_Y DCW 0
+    OB3_W DCW 0
+    OB3_H DCW 0
+    ALIGN
+ ; TODO: update constant values
+    AREA DINOCONST, DATA, READONLY
+    CAC_W          EQU      20
+    CAC_H          EQU      50
+    BIRD_W         EQU      40
+    BIRD_H         EQU      20
+    GROUND_Y       EQU      280
+    DINO_START_X   EQU      20
+    DINO_START_Y   EQU      280-NORMAL_DINO_H
+    NORMAL_DINO_H  EQU      40
+    DISTANCE_MOVED EQU      20
+    ALIGN
+
+    IMPORT sys_time
+    
+    AREA DINOCODE, CODE, READONLY
+
+    
+
+
+MAIN_LOOP
+
+
+    BL check_for_objects ;spawn objects if needed
+
+    BL move_object ;move Obstacle
+
+
+    LDR R0 , =DINO_X
+    LDR R1 , =OB1_X
+    BL check_collision   
+
+    CMP R3 , #0
+    BNE game_over
+    
+    LDR R1 , =OB2_X
+    BL check_collision   
+    CMP R3 , #0
+    BNE game_over
+    
+    LDR R1 , =OB3_X
+    BL check_collision   
+    CMP R3 , #0
+    BNE game_over
+
+    BL check_for_despawn
+    
+
+ B MAIN_LOOP
+
+
+
+
+
+check_for_objects
+    PUSH {R0-R12 , LR}
+
+     MOV R0, #0 
+     LDR R10 , =sys_time  
+     LDR R10 , [R10]                  ;R10 = sys_time
+     LDR R11 , =LAST_SPAWN_TIME
+     LDR R11 , [R11]                  ;R11 = LAST_SPAWN_TIME
+     SUB R11 , R10 ,R11                ;R11 = sys_time - LAST_SPAWN_TIME
+     MOV R9 , #60                      ;R9 =60
+     CMP R11 , R9                      ;if sys_time-LAST_SPAWN_TIME <60  dont spawn anything
+     BLT end_check_for_objects
+
+     
+     LDR R1 , =OB1_ACTIVE
+     LDR R1 , [R1]
+     CMP R1 , #1
+     BNE spawn_object1  ;if ob1 isnt active spawn one 
+     LDR R2 , =OB2_ACTIVE
+     LDR R2 , [R2]
+     CMP R2 , #1
+     BNE spawn_object2
+
+      LDR R3 , =OB3_ACTIVE
+     LDR R3 , [R3]
+     CMP R3 , #1
+     BNE spawn_object3
+
+
+
+   end_check_for_objects
+    POP {R0-R12 , LR}
+    BX LR
+
+
+
+spawn_object1
+  PUSH {R0-R12 , LR}
+  MOV R0 , #1              ;to indicate the object number
+  MOV R7 , #1              ;object became active
+  LDR R1 , =OB1_ACTIVE
+  STR R7 , [R1]            ;OB1_active =1
+
+  LDR R4 , =OB1_TYPE
+  BL DINO_DEFINE_OB_TYPE     ;get random object type
+  LDR R4 , [R4]
+  CMP R4 , #1 ;if its a cactus
+
+  BEQ spawn_cactus  ;if true spawn a cactus
+
+  B spawn_bird    ;if false spawn a bird
+  
+  
+
+
+
+ end_spawn_object1        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+   POP {R0-R12 , LR}
+    B check_for_objects
+
+
+
+
+
+spawn_object2
+  PUSH {R0-R12 , LR}
+  MOV R0 , #2             ;to indicate the object number
+  MOV R7 , #1              ;object became active
+  LDR R1 , =OB2_ACTIVE
+  STR R7 , [R1]            ;OB2_active =1
+
+  LDR R4 , =OB2_TYPE
+  BL DINO_DEFINE_OB_TYPE     ;get random object type
+  LDR R4 , [R4]
+  CMP R4 , #1 ;if its a cactus
+
+  BEQ spawn_cactus  ;if true spawn a cactus
+
+  B spawn_bird    ;if false spawn a bird
+  
+  
+
+
+
+ end_spawn_object2        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+   POP {R0-R12 , LR}
+    B check_for_objects
+
+
+spawn_object3
+  PUSH {R0-R12 , LR}
+  MOV R0 , #3             ;to indicate the object number
+  MOV R7 , #1              ;object became active
+  LDR R1 , =OB3_ACTIVE
+  STR R7 , [R1]            ;OB3_active =1
+
+  LDR R4 , =OB3_TYPE
+  BL DINO_DEFINE_OB_TYPE     ;get random object type
+  LDR R4 , [R4]
+  CMP R4 , #1 ;if its a cactus
+
+  BEQ spawn_cactus  ;if true spawn a cactus
+
+  B spawn_bird    ;if false spawn a bird
+  
+  
+
+
+
+ end_spawn_object3        ;no need for it since spawn_cactus/bird ends with BX check_for_objects
+   POP {R0-R12 , LR}
+    B check_for_objects
+
+
+
+
+
+DINO_DEFINE_OB_TYPE  ;R4 has obj type address
+    PUSH {R0-R12 ,LR}
+    LDR R0, =sys_time       ; Get the address of sys_time
+    LDR R0, [R0]            ; Load the value of sys_time
+    UDIV R3, R0, #2
+    MUL R1, R3, #2
+    SUB R3, R0, R1          ; R3 => contains Modulus
+    CMP R3, #0
+    BEQ CHOOSE_BIRD
+    MOV R2, #1              ; 1 is a cactus
+    STR R2, [R4]
+    B RETURN_FROM_OB_TYPE
+
+ CHOOSE_BIRD
+    MOV R2, #0              ; 0 is bird
+    STR R2, [R4]
+
+ RETURN_FROM_OB_TYPE
+    POP {R0-R12 ,LR}
+    BX LR
+
+
+
+
+
+
+spawn_bird    ;R0 has the object number
+    PUSH {R0-R12 , LR}
+
+     CMP R0 , #1
+     BNE not1  ;not obj1
+     LDR R1 , =OB1_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj1_x =480  (the right of the screen)
+    
+     LDR R3 , =OB1_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , DINO_H  
+     STR R4 , [R3]      ;obj1_y = GROUND_Y-DINO_H (flying at height of the dino)
+     
+
+     LDR R5 , =OB1_W   ;R5 = address of obj width
+     LDR R6 , =OB1_H   ;R6 = address of obj height
+     LDR R7 , =BIRD_W
+     LDR R7 , [R7]     ;R7 = bird width
+     STR R7 , [R5]     ;OBj1 width = bird width
+
+     LDR R7 , =BIRD_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj1 height = bird height
+
+
+     B end_spawn_bird
+
+
+
+
+
+ not1
+  
+     CMP R0 , #2
+     BNE not2 ;not obj2
+     LDR R1 , =OB2_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj2_x =480  (the right of the screen)
+    
+     LDR R3 , =OB2_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , DINO_H  
+     STR R4 , [R3]      ;obj2_y = GROUND_Y-DINO_H (flying at height of the dino)
+
+
+
+
+     LDR R5 , =OB2_W   ;R5 = address of obj width
+     LDR R6 , =OB2_H   ;R6 = address of obj height
+     LDR R7 , =BIRD_W
+     LDR R7 , [R7]     ;R7 = bird width
+     STR R7 , [R5]     ;OBj2 width = bird width
+
+     LDR R7 , =BIRD_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj2 height = bird height
+
+
+
+     B end_spawn_bird
+
+
+
+ not2
+
+     LDR R1 , =OB3_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj3_x =480  (the right of the screen)
+    
+     LDR R3 , =OB3_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , DINO_H  
+     STR R4 , [R3]      ;obj3_y = GROUND_Y-DINO_H (flying at height of the dino)
+
+
+
+     LDR R5 , =OB3_W   ;R5 = address of obj width
+     LDR R6 , =OB3_H   ;R6 = address of obj height
+     LDR R7 , =BIRD_W
+     LDR R7 , [R7]     ;R7 = bird width
+     STR R7 , [R5]     ;OBj3 width = bird width
+
+     LDR R7 , =BIRD_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj3 height = bird height
+
+
+     B end_spawn_bird
+
+
+ end_spawn_bird
+
+    LDR R1 , =sys_time
+    LDR R1 , [R1]
+    STR R1 , LAST_SPAWN_TIME   ;update LAST_SPAWN_TIME
+
+
+
+     POP {R0-R12 , LR}
+     B check_for_objects    ;to check again for the other objects
+
+
+
+spawn_cactus    ;R0 has the object number
+    PUSH {R0-R12 , LR}
+
+     CMP R0 , #1
+     BNE not1  ;not obj1
+     LDR R1 , =OB1_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj1_x =480  (the right of the screen)
+    
+     LDR R3 , =OB1_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , CAC_H
+     STR R4 , [R3]      ;obj1_y = GROUND_Y-CAC_H (normal cactus position)
+     LDR R5 , =OB1_W   ;R5 = address of obj width
+     LDR R6 , =OB1_H   ;R6 = address of obj height
+     LDR R7 , =CAC_W
+     LDR R7 , [R7]     ;R7 = cactus width
+     STR R7 , [R5]     ;OBj1 width = cactus width
+
+     LDR R7 , =CAC_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj1 height = cactus height
+     B end_spawn_cactus
+
+
+
+
+
+ not1
+  
+     CMP R0 , #2
+     BNE not2 ;not obj2
+     LDR R1 , =OB2_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj2_x =480  (the right of the screen)
+    
+     LDR R3 , =OB2_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , CAC_H  
+     STR R4 , [R3]      ;obj2_y = GROUND_Y-CAC_H (normal cactus position)
+      
+
+     LDR R5 , =OB2_W   ;R5 = address of obj width
+     LDR R6 , =OB2_H   ;R6 = address of obj height
+     LDR R7 , =CAC_W
+     LDR R7 , [R7]     ;R7 = cactus width
+     STR R7 , [R5]     ;OBj2 width = cactus width
+
+     LDR R7 , =CAC_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj2 height = cactus height
+
+     B end_spawn_cactus
+
+
+
+ not2
+
+     LDR R1 , =OB3_X
+     MOV R2 , #480
+     STR R2 , [R1]  ;obj3_x =480  (the right of the screen)
+    
+     LDR R3 , =OB3_Y
+     MOV R4 , GROUND_Y
+     SUB R4 , R4 , CAC_H  
+     STR R4 , [R3]      ;obj3_y = GROUND_Y-CAC_H (normal cactus position)
+
+
+
+     LDR R5 , =OB3_W   ;R5 = address of obj width
+     LDR R6 , =OB3_H   ;R6 = address of obj height
+     LDR R7 , =CAC_W
+     LDR R7 , [R7]     ;R7 = cactus width
+     STR R7 , [R5]     ;OBj3 width = cactus width
+
+     LDR R7 , =CAC_H
+     LDR R7 , [R7]
+     STR R7 , [R6]    ;obj3 height = cactus height
+
+
+
+     B end_spawn_cactus
+
+
+ end_spawn_cactus
+
+
+    LDR R1 , =sys_time
+    LDR R1 , [R1]
+    STR R1 , LAST_SPAWN_TIME   ;update LAST_SPAWN_TIME
+
+
+     POP {R0-R12 , LR}
+     B check_for_objects   ;to check again for the other objects
+
+
+
+move_object     
+   
+   PUSH {R0-R12 , LR}
+   LDR R8 , =OB1_ACTIVE
+   LDR R8, [R8]
+   CMP R8 , #1   ;check if obj1 is active
+   BNE notobj1
+   LDR R1 , =OB1_X    ;R1 has obj_x address
+   LDR R2 , [R1]
+   SUB R2 , R2 , DISTANCE_MOVED    ;R2 = old x - DISTANCE_MOVED
+   STR R2 , [R1]                   ;put new x in obj_x
+   
+   
+
+
+
+   notobj1
+     LDR R8 , =OB2_ACTIVE
+     LDR R8, [R8]
+     CMP R8 , #1       ;check if obj2 is active
+     BNE notobj2
+
+      LDR R1 , =OB2_X    ;R1 has obj_x address
+      LDR R2 , [R1]
+      SUB R2 , R2 , DISTANCE_MOVED    ;R2 = old x - DISTANCE_MOVED
+      STR R2 , [R1]                   ;put new x in obj_x
+
+      
+
+    notobj2
+     LDR R8 , =OB3_ACTIVE
+     LDR R8, [R8]
+     CMP R8, #1               ;check if obj3 is active
+     BNE end_move_object
+     LDR R1 , =OB3_X    ;R1 has obj_x address
+     LDR R2 , [R1]
+     SUB R2 , R2 , DISTANCE_MOVED    ;R2 = old x - DISTANCE_MOVED
+     STR R2 , [R1]                   ;put new x in obj_x
+     
+
+  end_move_object
+     POP {R0-R12, LR}
+     BX LR
+   
+   
+; R0 = pointer to Dino (x, y, w, h)
+; R1 = pointer to Object (x, y, w, h)
+; returns Z = 1 if collision detected, Z = 0 if not (can use BEQ/BNE)
+
+check_collision   ;output in R3
+    PUSH {R4-R7, LR}
+
+    ; Load Dino values
+    LDR R2, [R0]         ; Dino X
+    LDR R3, [R0, #4]     ; Dino Y
+    LDR R4, [R0, #8]     ; Dino Width
+    LDR R5, [R0, #12]    ; Dino Height
+
+    ; Load Object values
+    LDR R6, [R1]         ; Object X
+    LDR R7, [R1, #4]     ; Object Y
+    LDR R8, [R1, #8]     ; Object Width
+    LDR R9, [R1, #12]    ; Object Height
+
+    ; Check X overlap
+    ADD R10, R2, R4      ; Dino right edge
+    ADD R11, R6, R8      ; Object right edge
+    CMP R10, R6
+    BLE no_collision     ; Dino completely left
+
+    CMP R11, R2
+    BLE no_collision     ; Object completely left
+
+    ; Check Y overlap
+    ADD R10, R3, R5      ; Dino bottom edge
+    ADD R11, R7, R9      ; Object bottom edge
+    CMP R10, R7
+    BLE no_collision     ; Dino completely above
+
+    CMP R11, R3
+    BLE no_collision     ; Object completely above
+
+    ; If all overlaps happen, collision detected
+    MOV R3, #1           ; Return 1 = collision
+    POP {R4-R7, LR}
+    BX LR
+
+ no_collision
+    MOV R3, #0           ; Return 0 = no collision
+    POP {R4-R7, LR}
+    BX LR
+    
