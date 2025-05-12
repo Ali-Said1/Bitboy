@@ -3,6 +3,11 @@
 	EXPORT ACTIVE_GAME
 	EXPORT JOYSTICK_X_VALUE
 	EXPORT JOYSTICK_Y_VALUE
+	EXPORT btn1_last_handled_time
+	EXPORT btn2_last_handled_time
+	EXPORT btn3_last_handled_time
+	EXPORT btn4_last_handled_time
+	EXPORT btn5_last_handled_time
 sys_time            DCD     0       ; 32-bit variable for system time (ms)
 ACTIVE_GAME       DCB     0       ; 8-bit variable for active game (0 = Main Menu, 1 = Game 1, etc.)
 LAST_DRAW_TIME 	  DCW 	0
@@ -219,9 +224,39 @@ JOYSTICK_NEUTRAL_HIGH   DCW 2200    ; Upper threshold for neutral zone (approx 4
     IMPORT OB3_Y
     IMPORT OB3_W
     IMPORT OB3_H
-    ;===============================END DINO Imports================================
-    IMPORT MEMORY_LOGO
     IMPORT DINO_LOGO
+    ;===============================END DINO Imports================================
+    ;===============================Start SnakeLadder Imports================================
+    IMPORT PLAYER_ONE_COLOR
+    IMPORT PLAYER_TWO_COLOR
+    IMPORT SNAKELDR_CELL_COLOR
+    IMPORT SNAKELDR_WALL_COLOR
+    IMPORT LADDER_ONE_POS
+    IMPORT LADDER_TWO_POS
+    IMPORT LADDER_THREE_POS
+    IMPORT SNAKE_ONE_POS
+    IMPORT SNAKE_TWO_POS
+    IMPORT SNAKE_THREE_POS
+    IMPORT SNAKELDR_CurrentPlayer
+    IMPORT PLAYER_ONE_POS
+    IMPORT PLAYER_TWO_POS
+    IMPORT SNAKELDR_GAME_STATUS
+    IMPORT PLAYER_MOVES
+    IMPORT SNAKE_LADDER_INIT_GAME
+    IMPORT INCREMENT_POSITION
+    IMPORT CHECK_LADDER_START
+    IMPORT CHECK_SNAKE_START
+    IMPORT SNAKELDR_LADDER_COLOR
+    IMPORT SNAKELDR_SNAKE_COLOR
+    IMPORT GET_PLAYER_MOVES
+    IMPORT INCREMENT_POSITION
+    IMPORT CHECK_LADDER_START
+    IMPORT CHECK_SNAKE_START
+    IMPORT TOGGLE_PLAYER
+    IMPORT SnakeLadder_LOGO
+    ;===============================END SnakeLadder Imports================================
+    
+    ;IMPORT MEMORY_LOGO
 	IMPORT MODULO
     AREA MYCODE, CODE, READONLY
 
@@ -587,6 +622,7 @@ JS_X_COMPARE_55
     MOVLE R1, #0
     SUBGT R1, R1, #50
 JS_X_UPDATE_VAL
+	RSB R1, R1, #0
     LDR R0, =JOYSTICK_X_VALUE
     STRB R1, [R0]
     
@@ -648,6 +684,7 @@ JS_Y_COMPARE_55
 JS_Y_UPDATE_VAL
     MOV R2, #-1
     MUL R1, R1, R2 ; To Make it start at top left
+	RSB R1, R1, #0
     LDR R0, =JOYSTICK_Y_VALUE
     STRB R1, [R0]
     
@@ -1345,12 +1382,8 @@ DRAW_MENU FUNCTION
     MOV R0, #130
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =DINO_LOGO
+    LDR R3, =SnakeLadder_LOGO
     MOV R0, #250
-    MOV R1, #200
-    BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
-    LDR R3, =DINO_LOGO
-    MOV R0, #370
     MOV R1, #200
     BL DRAW_RLE_IMAGE ; Call DRAW_IMAGE to draw the image
     POP {R0-R4, LR}
@@ -3193,6 +3226,7 @@ DRAW_AIM_OBJS FUNCTION
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+    LTORG
 AIM_DRAW_SCORE FUNCTION
     PUSH {R0-R12, LR}
     LDR R3, =AIM_SCORE
@@ -3274,7 +3308,7 @@ DRAW_GAME5_TIM FUNCTION
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
-
+    LTORG
 DRAW_GAME6 FUNCTION
     PUSH {R0-R12, LR}
 DELETE_OBS
@@ -3374,12 +3408,411 @@ DINO_CHECK_OB2
     LDR R6, =OB2_ACTIVE
     LDRB R6,[R6]
     CMP R6, #1
-    BNE END_GAME5_FUN
+    BNE END_GAME6_FUN
     BL DRAW_RECT
-END_GAME5_FUN
+END_GAME6_FUN
     POP {R0-R12, LR}
     BX LR
     ENDFUNC
+SNAKLDR_UPDATE_BOARD FUNCTION
+    PUSH {R0-R12, LR}
+    MOV R0, #160
+    MOV R1, #0
+    LDR R3, =320
+    LDR R4, =320
+    LDR R5, =SNAKELDR_CELL_COLOR
+    BL DRAW_RECT
+    MOV R7, #10
+    MOV R0, #128
+SNAKELDR_VERTICAL_COLS_LOOP
+    ADD R0, R0, #32
+	MOV R1, #0
+    MOV R3, #2
+    LDR R4, =320
+    LDR R5, =SNAKELDR_WALL_COLOR
+    BL DRAW_RECT
+    SUB R7, R7, #1
+    CMP R7, #0
+    BNE SNAKELDR_VERTICAL_COLS_LOOP
+    MOV R7, #10
+    MOV R0, #0
+    MOV R1, #-32
+
+SNAKELDR_HORIZONTAL_ROWS_LOOP
+    MOV R0, #160
+	ADD R1, R1, #32
+	LDR R3, =320
+    MOV R4, #2
+    LDR R5, =SNAKELDR_WALL_COLOR
+	PUSH {R1}
+    BL DRAW_RECT
+	POP {R1}
+    SUB R7, R7, #1
+    CMP R7, #0
+    BNE SNAKELDR_HORIZONTAL_ROWS_LOOP
+    LDR R7, =LADDER_ONE_POS
+    LDR R5, =SNAKELDR_LADDER_COLOR
+    LSR R8, R7, #8 ; Start
+    AND R7, R7, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    LDR R7, =LADDER_TWO_POS
+    LDR R5, =SNAKELDR_LADDER_COLOR
+    LSR R8, R7, #8 ; Start
+    AND R7, R7, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    LDR R7, =LADDER_THREE_POS
+    LDR R5, =SNAKELDR_LADDER_COLOR
+    LSR R8, R7, #8 ; Start
+    AND R7, R7, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    LDR R8, =SNAKE_ONE_POS
+    LDR R5, =SNAKELDR_SNAKE_COLOR
+    LSR R7, R8, #8 ; Start
+    AND R8, R8, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    LDR R8, =SNAKE_TWO_POS
+    LDR R5, =SNAKELDR_SNAKE_COLOR
+    LSR R7, R8, #8 ; Start
+    AND R8, R8, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    LDR R8, =SNAKE_THREE_POS
+    LDR R5, =SNAKELDR_SNAKE_COLOR
+    LSR R7, R8, #8 ; Start
+    AND R8, R8, #0xFF ; END
+    BL DRAW_SNAKE_LADDER
+    BL DRAW_SNAKLDR_PLAYER_ONE
+    BL DRAW_SNAKLDR_PLAYER_TWO
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+
+DRAW_SNAKE_LADDER FUNCTION
+    PUSH {LR}
+DRAW_SNAKE_LADDER_LOOP
+    MOV R0, R8
+    MOV R1, #10
+    BL MODULO
+    SUB R2, R2, #1
+    MOV R1, #32
+    MUL R2, R2, R1
+    ADD R2, R2, #160
+    MOV R0, R2
+    ADD R0, R0, #2
+    MOV R2, #10
+    MOV R1, R8
+	SUB R1, R1, #1
+    UDIV R1, R2
+	ADD R1, R1, #1
+    SUB R2, R2, R1
+    MOV R1, R2
+    MOV R2, #32
+    MUL R1, R2
+	ADD R1, R1, #2
+    MOV R3, #30
+    MOV R4, #30
+    BL DRAW_RECT
+    ADD R8, R8, #10
+    CMP R8, R7
+    BLE DRAW_SNAKE_LADDER_LOOP
+    POP {LR}
+    BX LR
+    ENDFUNC
+
+DRAW_SNAKLDR_PLAYER_ONE FUNCTION
+    PUSH {LR}
+    LDR R8, =PLAYER_ONE_POS
+    LDRB R8, [R8]
+    MOV R0, R8
+    SUB R0, R0, #1
+    MOV R1, #10
+    BL MODULO
+    MOV R1, #32
+    MUL R2, R2, R1
+    ADD R2, R2, #160
+    MOV R0, R2
+    ADD R0, R0, #2
+    MOV R2, #10
+    MOV R1, R8
+	SUB R1, R1, #1
+    UDIV R1, R2
+	ADD R1, R1, #1
+    SUB R2, R2, R1
+    MOV R1, R2
+    MOV R2, #32
+    MUL R1, R2
+	ADD R1, R1, #2
+    ADD R0, R0, #2
+    ADD R1, R1, #2
+    MOV R3, #10
+    MOV R4, #10
+    LDR R5, =PLAYER_ONE_COLOR
+    BL DRAW_RECT
+    POP {LR}
+    BX LR
+    ENDFUNC
+DRAW_SNAKLDR_PLAYER_TWO FUNCTION
+    PUSH {LR}
+    LDR R8, =PLAYER_TWO_POS
+    LDRB R8, [R8]
+    MOV R0, R8
+    SUB R0, R0, #1
+    MOV R1, #10
+    BL MODULO
+    MOV R1, #32
+    MUL R2, R2, R1
+    ADD R2, R2, #160
+    MOV R0, R2
+    ADD R0, R0, #2
+    MOV R2, #10
+    MOV R1, R8
+	SUB R1, R1, #1
+    UDIV R1, R2
+	ADD R1, R1, #1
+    SUB R2, R2, R1
+    MOV R1, R2
+    MOV R2, #32
+    MUL R1, R2
+	ADD R1, R1, #2
+    ADD R0, R0, #18
+    ADD R1, R1, #18
+    MOV R3, #10
+    MOV R4, #10
+    LDR R5, =PLAYER_TWO_COLOR
+    BL DRAW_RECT
+    POP {LR}
+    BX LR
+    ENDFUNC
+    LTORG
+SNAKLDR_DRAW_START FUNCTION
+    PUSH {R0-R12, LR}
+    MOV R0, #24
+    MOV R1, #102
+    LDR R3, =char_80
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #40
+    MOV R1, #102
+    LDR R3, =char_76
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #56
+    MOV R1, #102
+    LDR R3, =char_65
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #72
+    MOV R1, #102
+    LDR R3, =char_89
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #88
+    MOV R1, #102
+    LDR R3, =char_69
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #104
+    MOV R1, #102
+    LDR R3, =char_82
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #120
+    MOV R1, #102
+    LDR R3, =char_49
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    
+    MOV R0, #8
+    MOV R1, #202
+    LDR R3, =char_76
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #24
+    MOV R1, #202
+    LDR R3, =char_65
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #40
+    MOV R1, #202
+    LDR R3, =char_83
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #56
+    MOV R1, #202
+    LDR R3, =char_84
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #80
+    MOV R1, #202
+    LDR R3, =char_68
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #96
+    MOV R1, #202
+    LDR R3, =char_73
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #112
+    MOV R1, #202
+    LDR R3, =char_67
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #128
+    MOV R1, #202
+    LDR R3, =char_69
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+
+    MOV R0, #72
+    MOV R1, #302
+    LDR R3, =char_48
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+SNAKLDR_UPDATE_PLAYER_STAT
+    PUSH {R0-R12, LR}
+    LDR R0, =SNAKELDR_CurrentPlayer
+    LDRB R0, [R0]
+    CMP R0, #1
+    BNE SNAK_LDR_PLAYER_TWO
+    MOV R0, #120
+    MOV R1, #102
+    LDR R3, =char_49
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    B SNAKLDR_UPDATE_LASTDICE
+SNAK_LDR_PLAYER_TWO
+    MOV R0, #120
+    MOV R1, #102
+    LDR R3, =char_50
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+SNAKLDR_UPDATE_LASTDICE
+    LDR R0, =PLAYER_MOVES
+    LDRB R0, [R0]
+    MOV R7, #40
+    MUL R0, R0, R7
+    LDR R3, =char_48
+    ADD R3, R3, R0
+    MOV R0, #72
+    MOV R1, #302
+    MOV R4, #0xFFFF
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+SNAKLDR_WIN_SCREEN
+    PUSH {R0-R12, LR}
+    MOV R0, #0
+    MOV R1, #1
+    MOV R3, #160
+    LDR R4, =320
+    MOV R5, #0x0
+    BL DRAW_RECT
+
+    MOV R0, #24
+    MOV R1, #144
+    LDR R3, =char_80
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #40
+    MOV R1, #144
+    LDR R3, =char_76
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #56
+    MOV R1, #144
+    LDR R3, =char_65
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #72
+    MOV R1, #144
+    LDR R3, =char_89
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #88
+    MOV R1, #144
+    LDR R3, =char_69
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #104
+    MOV R1, #144
+    LDR R3, =char_82
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    LDR R0, =SNAKELDR_GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #1
+    BNE PLAYER2_SNAKLDR_WIN
+    MOV R0, #120
+    MOV R1, #144
+    LDR R3, =char_49
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+PLAYER2_SNAKLDR_WIN
+    MOV R0, #120
+    MOV R1, #144
+    LDR R3, =char_50
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+
+    MOV R0, #48
+    MOV R1, #160
+    LDR R3, =char_87
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #64
+    MOV R1, #160
+    LDR R3, =char_73
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #80
+    MOV R1, #160
+    LDR R3, =char_78
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    MOV R0, #96
+    MOV R1, #160
+    LDR R3, =char_83
+    MOV R4, #0x0E70
+    MOV R5, #0x0
+    BL DRAW_CHAR
+    POP {R0-R12, LR}
+    BX LR
+    ENDFUNC
+    LTORG
 ;#######################################################END Game Functions#######################################################
 ;#######################################################START TFT FUNCTIONS#######################################################
 TFT_COMMAND_WRITE PROC
@@ -3583,7 +4016,7 @@ MENU_INT0_HANDLER
     STR R2, [R1] ; Update hovered game index
     CMP R2, #5 ; Check if it was the last game in the first row (4)
     BEQ GO_SECOND_ROW
-    CMP R2, #9 ; Check if it was the last game in the second row (8)
+    CMP R2, #8 ; Check if it was the last game in the second row (7)
     BEQ GO_FIRST_ROW
     ; If both weren't the case stay in the same row
     LDR R1, =HOVERED_GAME_X ; Load X coordinate of hovered game
@@ -3742,10 +4175,10 @@ MENU_INT1_HANDLER
 
 GO_END_SECOND_ROW
     LDR R1, =HOVERED_GAME
-    MOV R0, #8
+    MOV R0, #7
     STR R0, [R1] ; Set hovered game to the last game in the second row
     LDR R1, =HOVERED_GAME_X
-    MOV R2, #362 ; X Coordinate to last game
+    MOV R2, #242 ; X Coordinate to last game
     STR R2, [R1]
     LDR R1, =HOVERED_GAME_Y ; Load Y coordinate of hovered game
     MOV R2, #192 ; Go to the second row
@@ -3884,6 +4317,8 @@ MENU_INT2_HANDLER
     BEQ RESET_AIM_LBL
     CMP R11, #6
     BEQ RESET_DINO_LBL
+    CMP R11, #7
+    BEQ RESET_SNAKLDR_LBL
 RESET_PONG_LBL
     BL PONG_RESET ; Reset the game
     B skip_toggle2
@@ -3922,6 +4357,11 @@ RESET_AIM_LBL
     B skip_toggle2
 RESET_DINO_LBL
     BL DINO_RESET
+    B skip_toggle2
+RESET_SNAKLDR_LBL
+    BL SNAKE_LADDER_INIT_GAME
+    BL SNAKLDR_UPDATE_BOARD
+    BL SNAKLDR_DRAW_START
     B skip_toggle2
     ;###########End Main Menu Handler###########
 GAME1_INT2_HANDLER
@@ -4106,7 +4546,7 @@ EXTI3_IRQHandler PROC ; Down button handler
     subs r0, r2, r3              ; r0 = sys_time - last_handled_time
     ldr r1, =250
     cmp r0, r1                  ; Compare difference with 250 ms
-    bls skip_toggle3              ; If <= 50 ms, skip the toggle
+    bls skip_toggle3              ; If <= 250 ms, skip the toggle
 	ldr r4, =btn4_last_handled_time
 	str r2, [r4]
 	; ISR logic starts here:
@@ -4116,6 +4556,8 @@ EXTI3_IRQHandler PROC ; Down button handler
     BEQ GAME2_INT3_HANDLER
     CMP R11, #3
     BEQ GAME3_INT3_HANDLER
+    CMP R11, #7
+    BEQ GAME7_INT3_HANDLER
     B skip_toggle3
 ; ##########Start Game2 Handler##########
 GAME2_INT3_HANDLER
@@ -4149,6 +4591,28 @@ GAME3_INT3_HANDLER
 	STRB R1, [R0]
     B skip_toggle3
 ; ##########END Game3 Handler##########
+; ##########Start Game7 Handler##########
+GAME7_INT3_HANDLER
+	LDR R0, =SNAKELDR_GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #0
+    BNE skip_toggle3
+    BL GET_PLAYER_MOVES
+    BL INCREMENT_POSITION
+    BL CHECK_LADDER_START
+    BL CHECK_SNAKE_START
+    BL TOGGLE_PLAYER
+	BL SNAKLDR_UPDATE_BOARD
+    LDR R0, =SNAKELDR_GAME_STATUS
+    LDRB R0, [R0]
+    CMP R0, #0
+    BEQ GAME7_UPDATE_PLAYER_STAT
+    BL SNAKLDR_WIN_SCREEN
+    B skip_toggle3
+GAME7_UPDATE_PLAYER_STAT
+    BL SNAKLDR_UPDATE_PLAYER_STAT
+    B skip_toggle3
+; ##########END Game7 Handler##########
 skip_toggle3
     pop {r0-r5, lr}          ; Restore registers
     bx lr                     ; Return from interrupt
