@@ -80,7 +80,7 @@ The BitBoy console includes a library of retro-style games, all developed in ARM
 **Main Features and Challengess:**  
 - Win detection for horizontal, vertical, or diagonal lines.
 
-### Snake and Ladder Game (Not implemented on the TFT)
+### Snake and Ladder Game
 **Main Features and Challenges:**  
 - Board memory representation.
 - Implementing game logic for player movement across the board.
