@@ -69,7 +69,7 @@ The BitBoy console includes a library of retro-style games, all developed in ARM
 ### Maze Game  
 **Main Features and Challenges:**  
 - Recursive Backtracker in ARM assembly.
-- Very limited stack size on the STM32F103 which lead us to use a custom-made more effiecient stack tailored for our use case.
+- Very limited stack size on the STM32F103 which lead us to use a custom-made more efficient stack tailored for our use case.
 
 ### Aim Trainer  
 **Main Features and Challenges:**  
@@ -99,7 +99,7 @@ The BitBoy console includes a library of retro-style games, all developed in ARM
 In order to test and simulate each game without requiring the physical TFT, we developed several Python-based renderers. These renderers utilize Keil's debugger to extract the game's memory and effectively "simulate" a TFT display. This approach allowed us to validate the game's logic before deploying it to the actual hardware. It also simplified debugging, as software issues could be identified and resolved prior to involving hardware.
 
 ### Simulation Projects
-The simulation projects can be found in the `SimulationProjects` directory within the repository. Each game has its own dedicated Python renderer, designed to replicate the behavior of the TFT.
+The simulation projects can be found in the `SimulationProjects` directory within the repository. Each game has its own dedicated Python renderer, designed to replicate the behaviour of the TFT.
 
 ### Setup
 To run the simulation projects, follow these steps:
