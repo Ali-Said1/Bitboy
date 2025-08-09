@@ -1,4 +1,4 @@
-# ACknowledgements: This file was created by Eng. Peter M. Ayad. TA at Fcaulty of Engineering, Cairo University.
+# Acknowledgements: This file was created by Eng. Peter M. Ayad. TA at Fcaulty of Engineering, Cairo University, and edited to implement RLE.
 from dataclasses import dataclass
 from PIL import Image
 import os

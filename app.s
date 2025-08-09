@@ -622,7 +622,7 @@ JS_X_COMPARE_55
     MOVLE R1, #0
     SUBGT R1, R1, #50
 JS_X_UPDATE_VAL
-	RSB R1, R1, #0
+	RSB R1, R1, #0 ; This was a hardware limitation, so we need to invert the value
     LDR R0, =JOYSTICK_X_VALUE
     STRB R1, [R0]
     
@@ -684,7 +684,7 @@ JS_Y_COMPARE_55
 JS_Y_UPDATE_VAL
     MOV R2, #-1
     MUL R1, R1, R2 ; To Make it start at top left
-	RSB R1, R1, #0
+	RSB R1, R1, #0 ; This was a hardware limitation, so we need to invert the value
     LDR R0, =JOYSTICK_Y_VALUE
     STRB R1, [R0]
     
