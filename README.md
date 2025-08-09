@@ -128,7 +128,7 @@ To run the simulation projects, follow these steps:
 <a id="references"></a>
 
 <!-- References -->
-## References
+## References:
 
 * [Wikipedia - Maze Generation using the Recursive Backtracker method](https://en.wikipedia.org/wiki/Maze_generation_algorithm#Recursive:~:text=exit%2C%20are%20removed.-,Randomized%20depth%2Dfirst%20search,-%5Bedit%5D)
 * [JamisBuck - Maze Generation Algorithms](https://www.jamisbuck.org/presentations/rubyconf2011/index.html)
