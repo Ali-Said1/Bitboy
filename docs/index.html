@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Helper guide based on the features of Bitboy.">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        xintegrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon">
+    <title>Microprocessors Helper Guide</title>
+</head>
+
+<body class="">
+    <h1 class="text-center fw-bold off-white mb-5">Microprocessors helper guide</h1>
+    <div class="container-fluid pb-5">
+        <div class="row justify-content-around">
+            <aside class="rounded-3 col-11 col-md-3 bg-dark bg-opacity-75 mb-3">
+                <ul class="list-unstyled py-3 my-0 fs-4 fw-bold">
+                    <li class="selected ps-2 py-1 mb-3 bg-dark bg-opacity-10 rounded-4">Interrupts</li>
+                    <li class="ps-2 py-1 mb-3 bg-dark bg-opacity-10 rounded-4">ADC</li>
+                    <li class="ps-2 py-1 mb-3 bg-dark bg-opacity-10 rounded-4">Timer</li>
+                    <li class="ps-2 py-1 mb-3 bg-dark bg-opacity-10 rounded-4">Run-Length Encoding</li>
+                </ul>
+            </aside>
+            <!-- ------------------------------Interrupts----------------------------------- -->
+            <section class="content col-11 col-md-8 bg-opacity-50 rounded-3 py-4 mb-3">
+                <h2 class="text-center off-white fs-1">Interrupts</h2>
+                <div>
+                    <p class="text-muted fs-5">
+                        First of all, you have to configure the <b>Nested Vector Interrupt Controller (NVIC)</b>, which
+                        is a fancy
+                        name for a buffer-like circuit that
+                        processes the interrupts (this is too much simplification for what an NVIC actually is), as the
+                        interrupts don't come from
+                        the code flow, but are <b>triggered</b> by an external event.
+                    </p>
+                    <p class="text-center text-muted m-0">Configuring the NVIC</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    ;#################################Configure NVIC ########################################
+    ldr r0, =NVIC_BASE  ; Load NVIC base address
+    ldr r1, =NVIC_AIRCR_OFFSET  ; Load NVIC_AIRCR offset
+    add r0, r0, r1  ; Calculate NVIC_AIRCR address
+    ldr r1, [r0]  ; Read NVIC_AIRCR
+    orr r1, r1, #0x0200 ; Set the priority group to 2 bits for pre-emption and 2 bits for sub-priority
+    str r1, [r0]  ; Write back to NVIC_AIRCR
+    ;#################################End Configure NVIC ########################################</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        You can search for the following concepts:
+                    </p>
+                    <p class="text-muted fs-5 fst-italic ps-2">What is an interrupt?</p>
+                    <p class="text-muted fs-5 fst-italic ps-2">What is the NVIC?</p>
+                    <p class="text-muted fs-5 fst-italic ps-2">What is preemption in NVIC?</p>
+                    <p class="text-muted fs-5 fst-italic ps-2">What is the difference between preemption of groups and
+                        sub-groups
+                        in NVIC?</p>
+                    <p class="text-muted fs-5">To use <b>External Interrupt / Event (EXTI)</b> such as a button click,
+                        you have
+                        to configure which <b>GPIO</b> to use, using the <b>AFIO</b> register and set the priority.</p>
+                    <p class="text-center text-muted m-0">Configuring AFIO and enabling the interrupts</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    ; Please review the configured values in your microcontroller's documentation
+    ; Map EXTI0 to EXTI3 to GPIOA
+    ldr r0, =AFIO_BASE
+    ldr r1, =AFIO_EXTICR1_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0]  ; Set EXTI0 to EXTI3 to GPIOA
+    mov r2, #0xFFFF
+    bic r1, r1, r2 ; Clear Lower 16 bits
+    str r1, [r0]  ; Write to AFIO_EXTICR1
+
+    ; Unmask EXTI0 to EXTI3 lines' interrupts
+    ldr r0, =EXTI_BASE
+    ldr r1, =EXTI_IMR_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0]  ; Read EXTI_IMR
+    orr r1, r1, #0x2F ; Unmask EXTI0 to EXTI3
+    str r1, [r0]  ; Write to EXTI_IMR
+
+
+    ; Enable interrupt on falling edge for EXTI0 to EXTI3 lines
+    ; I chose falling edge here since the GPIOs themselves are pulled up in the GPIO configuration
+    ldr r0, =EXTI_BASE
+    ldr r1, =EXTI_FTSR_OFFSET
+    add r0, r0, r1
+    ldr r1, [r0] ; Read EXTI_FTSR
+    orr r1, r1, #0x2F ; Enable falling edge trigger for EXTI0 to EXTI3
+    str r1, [r0]  ; Write to EXTI_FTSR
+
+
+    ; Enable NVIC interrupts for EXTI0 to EXTI3 lines
+    ldr r0, =NVIC_BASE  ; Load NVIC base address
+    ldr r1, =NVIC_ISER_ONE_OFFSET  ; Load NVIC_ISER0 offset
+    add r0, r0, r1  ; Calculate NVIC_ISER0 address
+    ldr r1, [r0]  ; Read NVIC_ISER0
+    ldr r2, =0x8003C0
+    orr r1, r1, r2  ; Enable interrupts for EXTI0 to EXTI3, ISER0 bits 6 - 9
+    str r1, [r0]  ; Write back to NVIC_ISER0
+
+    ; Set the preemption priority and subpriority for EXTI0 to EXTI3 interrupts
+    ldr r0, =NVIC_BASE  ; Load NVIC base address
+    ldr r1, =NVIC_IPR_TWO_OFFSET  ;Load NVIC_IPR2 offset
+    add r0, r0, r1  ;Calculate NVIC_IPR2 address
+    ldr r1, [r0]  ;Read NVIC_IPR2
+    mov r2, #0x10000
+    LSL r2, r2, #16
+    orr r1, r1, r2 ;Set the priority for EXTI1 & EXTI0 (Preemption to 0, sub priority of EXTI1 is 1 and EXTI0 is 0, lower priority number means higher priority)
+    str r1, [r0]  ;Write back to NVIC_IPR2
+
+    ldr r0, =NVIC_BASE  ;Load NVIC base address
+    ldr r1, =NVIC_IPR_THREE_OFFSET  ;Load NVIC_IPR2 offset
+    add r0, r0, r1  ;Calculate NVIC_IPR3 address
+    ldr r1, [r0]  ;Read NVIC_IPR3
+    MOV r2, #0x3020
+    orr r1, r1, r2 ;Set the priority for EXTI3 & EXTI2 (Preemption to 0, sub priority of EXTI3 is 3 and EXTI2 is 2)
+    str r1, [r0]  ;Write back to NVIC_IPR3
+</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        To use interrupts, you have to reference the interrupt callback, called <b>Interrupt Service
+                            Routine (ISR)</b>, from the vector table defined in the startup file.
+                    </p>
+                    <p class="text-muted fs-5">
+                        First, define the ISRs you are going to need.
+                    </p>
+                    <p class="text-center text-muted m-0">Vector table defined in startup_xxx.s</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">; Vector Table Mapped to Address 0 at Reset
+                AREA    RESET, DATA, READONLY
+                EXPORT  __Vectors
+                EXPORT  __Vectors_End
+                EXPORT  __Vectors_Size
+                
+                __Vectors       DCD     __initial_sp               ; Top of Stack
+                DCD     Reset_Handler              ; Reset Handler
+                DCD     NMI_Handler                ; NMI Handler
+                DCD     HardFault_Handler          ; Hard Fault Handler
+                DCD     MemManage_Handler          ; MPU Fault Handler
+                DCD     BusFault_Handler           ; Bus Fault Handler
+                DCD     UsageFault_Handler         ; Usage Fault Handler
+                DCD     0                          ; Reserved
+                DCD     0                          ; Reserved
+                DCD     0                          ; Reserved
+                DCD     0                          ; Reserved
+                DCD     SVC_Handler                ; SVCall Handler
+                DCD     DebugMon_Handler           ; Debug Monitor Handler
+                DCD     0                          ; Reserved
+                DCD     PendSV_Handler             ; PendSV Handler
+                DCD     SysTick_Handler            ; SysTick Handler
+                
+                ; External Interrupts
+                DCD     WWDG_IRQHandler            ; Window Watchdog
+                DCD     PVD_IRQHandler             ; PVD through EXTI Line detect
+                DCD     TAMPER_IRQHandler          ; Tamper
+                DCD     RTC_IRQHandler             ; RTC
+                DCD     FLASH_IRQHandler           ; Flash
+                DCD     RCC_IRQHandler             ; RCC
+                DCD     EXTI0_IRQHandler           ; EXTI Line 0
+                DCD     EXTI1_IRQHandler           ; EXTI Line 1
+                DCD     EXTI2_IRQHandler           ; EXTI Line 2
+                DCD     EXTI3_IRQHandler           ; EXTI Line 3
+                DCD     EXTI4_IRQHandler           ; EXTI Line 4
+                ........</code>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        Then, At the start of your main <i class="fw-bold">".s"</i> file, reference the required ISRs:
+                    </p>
+                    <p class="text-center text-muted m-0">Export required ISRs</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    EXPORT EXTI0_IRQHandler
+                        EXPORT EXTI1_IRQHandler
+                        EXPORT EXTI2_IRQHandler
+                        EXPORT EXTI3_IRQHandler
+                        EXPORT EXTI9_5_IRQHandler
+                        EXPORT ADC1_2_IRQHandler
+                        EXPORT SysTick_Handler</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        Lastly, write the <b>PROC</b> definitions for your ISRs, I prefer placing them at the end of
+                        the file.
+                    </p>
+                    <p class="text-center text-muted m-0">ISR PROC definition</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    EXTI2_IRQHandler PROC
+                        
+                        push {r0-r5, lr}         ; Save registers to the stack
+                        ;   The following code resets the pending bit for the current EXTI, so it does not fire multiple times
+                        ;   THIS SHOULD BE DONE
+                        ldr r0, =EXTI_BASE      ; EXTI base address
+                        ldr r1, =EXTI_PR_OFFSET        ; EXTI_PR offset
+                        add r0, r0, r1            ; Calculate EXTI_PR address
+                        mov r1, #0x04             ; Bit mask for EXTI2
+    str r1, [r0]              ; Clear the pending bit for EXTI0
+;   Your logic for the interrupt here:
+
+    pop {r0-r5, lr}          ; Restore registers
+    bx lr                     ; Return from interrupt
+    ENDP
+</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+            <!-- ------------------------------Interrupts----------------------------------- -->
+            <!-- ------------------------------ADC----------------------------------- -->
+            <section class="content col-11 col-md-8 bg-opacity-50 rounded-3 py-4 mb-3 visually-hidden">
+                <h2 class="text-center off-white fs-1">Analog to Digital Converter</h2>
+                <div>
+                    <p class="text-muted fs-5">
+                        An <b>Analog-to-Digital Converter (ADC)</b> converts a continuous
+                        analog signal, like voltage or current, into a discrete digital signal. This allows processing
+                        real-world data from sensors.
+                    </p>
+
+                    <p class="text-muted fs-5">
+                        We used the <i class="fw-bold">ADC</i> to process joystick input.
+                    </p>
+                    <p class="text-center text-muted m-0">Configure the ADC</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    ;##################################Start ADC1 config############################################
+    ; SMPR2: Configure sample time for channel 0 (Joystick X on PB0) and 1 (Joystick Y on PB1)
+    ; Let's use 71.5 cycles: 0b101
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_SMPR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_SMPR2
+    ldr r2, [r1]
+    ldr r3, =0x36000000
+    orr r2, r3
+    str r2, [r1]
+    ; SQR1 (1 conversion in sequence)
+    ldr r1, =ADC1_SQR1_OFFSET
+    add r1, r0, r1
+    ldr r2, [r1]
+    bic r2, r2, #0x00F00000 ; Clear L bits (bits 23-20 for number of conversions)
+                            ; We'll do one channel at a time.
+    ;orr r2, r2, #0x00100000
+    str r2, [r1]
+    
+    ldr r0, =ADC1_BASE
+    ldr   r1, =ADC1_SQR3_OFFSET
+    add   r1, r0, r1            ; r1 → &ADC1->SQR3
+    ldr   r2, [r1]
+    bic   r2, r2, #0x1F         ; clear SQ1 (bits 4:0)
+    ;ORR R2, R2, #9
+    ;LSL R2, R2, #8
+    orr   r2, r2, #8     ; SQ1 = 8 (channel 8 = PB0)
+    str   r2, [r1]
+    ; Turn ADC On (ADON=1 in CR2) - first time to wake up, second time after config
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_ADON
+    str r2, [r1]
+
+    ; Wait for ADC to stabilize (a short delay)
+    mov r5, #10 ; Small delay
+    bl DELAY_MS ; Use your existing delay function
+
+    ; ADC Calibration
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_CAL  ; Start calibration
+    str r2, [r1]
+
+ADC_CAL_WAIT
+    ldr r2, [r1]
+    tst r2, #ADC_CR2_CAL      ; Check if CAL bit is still set
+    bne ADC_CAL_WAIT          ; Loop if still calibrating
+    
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    ldr r2, [r1]
+    orr r2, r2, #ADC_CR2_ADON
+    str r2, [r1]
+    ; ADC Configuration:
+    ; CR1: SCAN mode off, interrupts off for now
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR1_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR1
+    mov r2, #(0 << 8)   ; Default: SCAN=0, AWDSGL=0etc.
+	;orr r2, r2, #(1 << 5)
+    str r2, [r1]
+
+    ; CR2: ADON=1 (already on), CONT=1 (continuous conversion), ALIGN=0 (right)
+    ldr r0, =ADC1_BASE
+    ldr r1, =ADC1_CR2_OFFSET
+    add r1, r0, r1 ; Address of ADC_CR2
+    MOV R2, #3 ; CONT AND ADON
+    str r2, [r1]
+
+    ;##################################END ADC1 config############################################</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        This function triggers the <i class="fw-bold">ADC</i> conversion on Channel 8, the ADC reads
+                        12-bit data, but we used a 10-bit joystick so we had to configure this part specific to our need
+                        (not standard code)
+                    </p>
+                    <p class="text-center text-muted m-0">Read from the ADC</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    START_ADC1_CH8_CONVERSION FUNCTION
+    PUSH {R0-R3,LR}
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SQR3_OFFSET
+    ADD R0, R0, R1          ; Address of ADC_SQR3
+    MOV R1, #8              ; R3 = channel number
+    STR R1, [R0]            ; Set first sequence conversion to channel R0
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+    ; 2. Start ADC conversion (Set SWSTART bit in ADC_CR2)
+WAIT_CH8_EOC_LOOP
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    TST R1, #2 ; Check EOC
+    BEQ WAIT_CH8_EOC_LOOP
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_SR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    MVN R2, #2
+    AND R1, R1, R2
+    STR R1, [R0] ; Clear EOC
+
+    LDR R0, =ADC1_BASE
+    LDR R1, =ADC1_DR_OFFSET
+    ADD R0, R0, R1
+    LDR R1, [R0]
+    LSR R1, R1, #2
+    MOV R2, #10
+    UDIV R1, R2
+    CMP R1, #100
+    BLE JS_SKIP_CAP_X_AT_100
+    MOV R1, #100
+JS_SKIP_CAP_X_AT_100
+    CMP R1, #45
+    BGE JS_X_COMPARE_55
+    SUB R1, R1, #50
+    B JS_X_UPDATE_VAL
+JS_X_COMPARE_55
+    CMP R1, #55
+    MOVLE R1, #0
+    SUBGT R1, R1, #50
+JS_X_UPDATE_VAL
+    LDR R0, =JOYSTICK_X_VALUE
+    STRB R1, [R0]
+    
+    POP {R0-R3,LR}
+    BX LR
+    ENDFUNC</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-light fs-5 mt-3">This took so much time to figure out :&lt; </p>
+                <p class="text-danger bg-black fs-5 mt-3">Note: Never use interrupt with ADC</p>
+            </section>
+            <!-- ------------------------------ADC----------------------------------- -->
+            <!-- ------------------------------Timer----------------------------------- -->
+            <section class="content col-11 col-md-8 bg-opacity-50 rounded-3 py-4 mb-3 visually-hidden">
+                <h2 class="text-center off-white fs-1">SysTick Timer</h2>
+                <div>
+                    <p class="text-muted fs-5">
+                        To have a real world timer in your microcontroller, you have two options, using the <b>Real Time
+                            Clock (RTC)</b>
+                        peripheral, or using the <b>SysTick timer</b>
+                    </p>
+
+                    <p class="text-muted fs-5">
+                        We used the <i class="fw-bold">SysTick timer</i>.
+                    </p>
+
+                    <p class="text-center text-muted m-0">Configure the SysTick Timer with Interrupt</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">    ;##################################Start Systick Enable#######################################
+    ldr r0, =SysTick_BASE  ; Load SysTick base address
+    ldr r1, =SysTick_CTRL_OFFSET  ; Load SysTick_CTRL offset
+    add r0, r0, r1  ; Calculate SysTick_CTRL address
+    ldr r1, [r0]  ; Read SysTick_CTRL
+    orr r1, r1, #0x07  ; Enable SysTick with HSI/8 clock and enable interrupt
+    str r1, [r0]  ; Write back to SysTick_CTRL
+    ldr r0, =SysTick_BASE  ; Load SysTick base address
+    ldr r1, =SysTick_RELOAD_VALUE_OFFSET  ; Load SysTick_RELOAD_VALUE offset
+    add r0, r0, r1 ; Calculate SysTick_RELOAD_VALUE address
+    ldr r1, =0x0F9FF ; Set reload value to 63999 (tick every 1 ms)
+    str r1, [r0]  ; Write to SysTick_RELOAD_VALUE
+    ldr r0, =SysTick_BASE  ; Load SysTick base address
+    ldr r1, =SysTick_CURRENT_VALUE_OFFSET  ; Load SysTick_CURRENT_VALUE offset
+    add r0, r0, r1 ; Calculate SysTick_CURRENT_VALUE address
+    ldr r1, =0x00 ; Set current value to 0
+    str r1, [r0]  ; Write to SysTick_CURRENT_VALUE
+    ;##################################End Systick Enable#######################################</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        In the ISR for the SysTick Timer, you need to increment a <i class="fw-bold">timer variable</i>
+                        every time the ISR
+                        is fired
+                    </p>
+                    <p class="text-center text-muted m-0">Increment the System Timer (ms)</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">SysTick_Handler PROC
+    PUSH    {R0, R1, LR}            ; Save registers
+    LDR     R0, =sys_time    ; Load address of my_variable
+    LDR     R1, [R0]            ; Load current value of my_variable
+    ADD     R1, R1, #1          ; Increment value by 1
+    STR     R1, [R0]            ; Store updated value back to my_variable
+    POP     {R0, R1,LR}            ; Restore registers
+    bx lr
+    ENDP</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted fs-5 pt-3">
+                        Don't forget to reset your timer variable on system startup <i class="fw-bold">startup_xxx.s</i>
+                    </p>
+                    <p class="text-center text-muted m-0">Reset the System Timer</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">Reset_Handler    PROC
+                 EXPORT  Reset_Handler             [WEAK]
+     IMPORT  __main
+     IMPORT  SystemInit
+     IMPORT  sys_time
+                 LDR     R0, =SystemInit
+                 BLX     R0
+                 LDR     R0, =sys_time
+                 MOV     R1, #0
+                 STR     R1, [R0]
+                 LDR     R0, =__main
+                 BX      R0
+                 ENDP</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------Timer----------------------------------- -->
+            <!-- ------------------------------Run-Length Encoding----------------------------------- -->
+            <section class="content col-11 col-md-8 bg-opacity-50 rounded-3 py-4 mb-3 visually-hidden">
+                <h2 class="text-center off-white fs-1">Run-Length Encoding</h2>
+                <div>
+                    <p class="text-muted fs-5">
+                        Since you are working on a microcontroller, storage might be a problem, specially if you are
+                        using a lot of photos.
+                    </p>
+
+                    <p class="text-muted fs-5">
+                        To fix that you can use<i class="fw-bold">Run-length Encoding</i>.
+                    </p>
+                    <p class="text-muted fs-5">
+                        <i class="fw-bold">Run-length Encoding</i> is a compression algorithm that transforms an image
+                        by replacing consecutive sequences of identical pixels with a count of the repetitions and the
+                        color of that pixel. You must use images with repeating colors in sequence to benefit from <i
+                            class="fw-bold">RLE</i>
+                    </p>
+
+                    <p class="text-center text-muted m-0">Python code implementing Run-length Encoding</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content"># Acknowledgements: This file was created by Eng. Peter M. Ayad. TA at Fcaulty of Engineering, Cairo University, and edited to implement RLE.
+from dataclasses import dataclass
+from PIL import Image
+import os
+from collections import deque
+import sys
+
+@dataclass
+class RLEObject:
+    color:str
+    count:int
+
+
+
+def image_to_arm_asm(image_path, output_file):
+    file_name = os.path.basename(image_path)
+    var_name = os.path.splitext(file_name)[0]
+
+    img = Image.open(image_path).convert("RGB")
+    width, height = img.size
+
+    # Convert image to RGB565 format (5 bits Red, 6 bits Green, 5 bits Blue)
+    #  or BGR565 format (5 bits Blue, 6 bits Green, 5 bits Red)
+    pixel_data = []
+    for y in range(height):
+        for x in range(width):
+            r, g, b = img.getpixel((x, y))
+            rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+            pixel_data.append(rgb565)
+            
+
+    runLengthList:list[RLEObject] = []
+
+    for pixel in pixel_data:
+        if len(runLengthList) == 0:
+            runLengthList.append(RLEObject(color=pixel, count = 1))
+            continue
+        if runLengthList[-1].color == pixel:
+            runLengthList[-1].count += 1
+        else:
+            runLengthList.append(RLEObject(color=pixel, count = 1))
+    
+    
+    
+
+    with open(output_file, "w") as f:
+        f.write(f"    AREA MYIMAGE, DATA, READONLY\n")
+        f.write(f"    EXPORT {var_name}\n\n")
+
+        f.write(f"{var_name}\n")
+        f.write(f"    DCW {len(runLengthList)}\n")
+        f.write(f"    DCW {width}\n")
+        f.write(f"    DCW {height}\n")  # Image width and height
+
+        for i, colorRun in enumerate(runLengthList):
+            f.write(f"    DCW {colorRun.count}, 0x{colorRun.color:04X}\n")
+            
+
+        f.write(f"\n    END\n")
+
+    print(f"Assembly file {output_file} generated successfully.")
+
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+# Choose BGR or RGB depending on hardware
+#  or just try both
+
+# ADD DIRECTORY TO IMAGE HERE
+image_to_arm_asm(image_path=os.path.join(script_dir, f'../assets/myimage.png'),
+                 output_file=os.path.join(script_dir, "RLEOutput.s"))</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-center text-muted m-0 mt-3">Reading RLE encoded image</p>
+                    <div class="code-block rounded-3 p-3 d-flex align-items-start shadow-lg">
+                        <code class="code-content flex-grow-1 text-sm text-white-50 overflow-x-auto pe-4"
+                            id="code-content">; Draw run length encoded image
+; All landscape
+; R0 Has Start X
+; R1 Has Start Y
+; R3 Has image address
+DRAW_RLE_IMAGE FUNCTION
+    PUSH {R0-R12, LR}
+    LDRH R7, [R3], #2 ; Read the count of repitions
+
+    LDRH R4, [R3], #2 ; Load width from image address
+    LDRH R5, [R3], #2 ; Load height from image address
+    
+    MOV R2, #0x2A ; Set Column Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R0, #8 ; Get high byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start X coordinate
+    AND R2, R0, #0xFF ; Get low byte of Start X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start X coordinate
+    ADD R6, R4, R0
+    SUB R6, R6, #1 ; Calculate End X coordinate (Start X + Width - 1)
+    LSR R2, R6, #8 ; Get high byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End X coordinate
+    AND R2, R6, #0xFF ; Get low byte of End X coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End X coordinate
+
+    MOV R2, #0x2B ; Set Page Address command
+    BL TFT_COMMAND_WRITE
+    LSR R2, R1, #8 ; Get high byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of Start Y coordinate
+    AND R2, R1, #0xFF ; Get low byte of Start Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of Start Y coordinate
+    ADD R6, R5, R1
+    SUB R6, R6, #1 ; Calculate End Y coordinate (Start Y + Height - 1)
+    LSR R2, R6, #8 ; Get high byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send high byte of End Y coordinate
+    AND R2, R6, #0xFF ; Get low byte of End Y coordinate
+    BL TFT_DATA_WRITE ; Send low byte of End Y coordinate 
+
+    MOV R2, #0x2C ; Memory Write command
+    BL TFT_COMMAND_WRITE
+
+OUTER_RLE_LOOP
+    LDRH R4, [R3], #2 ; Repition of the color
+    LDRH R0, [R3], #2
+INNER_RLE_LOOP
+    MOV R2, R0, LSR #8 ; Extract high byte
+    BL TFT_DATA_WRITE ; Send high byte of pixel color
+    AND R2, R0, #0xFF ; Extract low byte
+    BL TFT_DATA_WRITE ; Send low byte of pixel color
+    SUB R4, R4, #1
+	CMP R4, #0
+    BNE INNER_RLE_LOOP
+    SUB R7, R7, #1
+	CMP R7, #0
+    BNE OUTER_RLE_LOOP
+
+    POP {R0-R12, LR}
+    BX LR
+	ENDFUNC</code>
+                        <button onclick="copyToClipboard(this)" class="btn btn-dark text-white-50 p-1 lh-1"
+                            aria-label="Copy to clipboard">
+                            <i class="bi bi-clipboard fs-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------Run-Length Encoding----------------------------------- -->
+        </div>
+    </div>
+    <footer class="p-4 bg-dark text-center text-secondary">&copy; The <a target="_blank"
+            href="https://github.com/Ali-Said1/Bitboy" class="text-decoration-none text-success">Bitboy</a>
+        Team 💕</footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
+        crossorigin="anonymous"></script>
+    <script>
+        function copyToClipboard(buttonElement) {
+            // Find the code element within the same parent as the button.
+            const codeElement = buttonElement.parentElement.querySelector('code');
+            const textToCopy = codeElement.innerText;
+
+            const el = document.createElement('textarea');
+            el.value = textToCopy;
+            document.body.appendChild(el);
+            el.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    // Find the icon within the clicked button
+                    const icon = buttonElement.querySelector('.bi-clipboard, .bi-check-lg');
+                    if (icon) {
+                        icon.classList.remove('bi-clipboard');
+                        icon.classList.add('bi-check-lg');
+
+                        // Change it back after a delay
+                        setTimeout(() => {
+                            icon.classList.remove('bi-check-lg');
+                            icon.classList.add('bi-clipboard');
+                        }, 1500);
+                    }
+                } else {
+                    console.error('Fallback: Copying text command was unsuccessful.');
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+
+            document.body.removeChild(el);
+        }
+    </script>
+    <script src="scripts/app.js"></script>
+</body>
+
+</html>
